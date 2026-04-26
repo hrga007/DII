@@ -12,15 +12,14 @@ export function LoginPage() {
 
   if (!isInitialized()) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-xl shadow-md p-8 w-full max-w-md text-center">
-          <div className="text-blue-800 font-bold text-xl mb-2">DII IT Ulaganja</div>
-          <p className="text-gray-600 mb-6 text-sm">
-            Firebase nije konfiguriran. Postavite vezu u postavkama.
-          </p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm text-center">
+          <div className="text-4xl mb-3">⚙️</div>
+          <h2 className="text-blue-800 font-bold text-lg mb-2">Firebase nije konfiguriran</h2>
+          <p className="text-gray-500 text-sm mb-6">Postavite vezu u postavkama.</p>
           <button
             onClick={() => navigate('/settings')}
-            className="bg-blue-700 text-white px-6 py-2 rounded-lg hover:bg-blue-800 transition-colors"
+            className="w-full bg-blue-700 text-white py-3 rounded-xl font-medium hover:bg-blue-800 transition-colors"
           >
             Idi na Postavke
           </button>
@@ -44,54 +43,68 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="bg-white rounded-xl shadow-md p-8 w-full max-w-md">
-        <h1 className="text-blue-800 font-bold text-xl mb-1">DII IT Ulaganja</h1>
-        <p className="text-gray-500 text-sm mb-6">Prijavite se za nastavak</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+        {/* Header */}
+        <div className="bg-blue-800 px-8 py-6 text-center">
+          <div className="text-4xl mb-2">📊</div>
+          <h1 className="text-white font-bold text-xl">DII IT Ulaganja</h1>
+          <p className="text-blue-200 text-sm mt-1">Prijavite se za nastavak</p>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="ime@tijelo.hr"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Lozinka</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
-              {error}
+        {/* Form */}
+        <div className="px-8 py-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="ime@tijelo.hr"
+              />
             </div>
-          )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Lozinka</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-700 text-white py-2 rounded-lg font-medium hover:bg-blue-800 transition-colors disabled:opacity-60"
-          >
-            {loading ? 'Prijava...' : 'Prijavi se'}
-          </button>
-        </form>
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 flex items-center gap-2">
+                <span>⚠️</span> {error}
+              </div>
+            )}
 
-        <p className="mt-4 text-center text-xs text-gray-400">
-          <button onClick={() => navigate('/settings')} className="underline hover:text-gray-600">
-            Firebase postavke
-          </button>
-        </p>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-700 text-white py-3 rounded-xl font-semibold hover:bg-blue-800 transition-colors disabled:opacity-60 text-sm"
+            >
+              {loading
+                ? <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                    Prijava...
+                  </span>
+                : 'Prijavi se'}
+            </button>
+          </form>
+
+          <p className="mt-5 text-center text-xs text-gray-400">
+            <button onClick={() => navigate('/settings')} className="underline hover:text-gray-600">
+              Firebase postavke
+            </button>
+          </p>
+        </div>
       </div>
     </div>
   )

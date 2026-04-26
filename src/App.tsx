@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import type { User } from 'firebase/auth'
 import { loadConfig, initFirebase, isInitialized } from './config/firebase'
 import { onAuthChange } from './services/authService'
+import { ToastProvider } from './hooks/useToast'
+import { ToastContainer } from './components/ToastContainer'
 import { Layout } from './components/Layout'
 import { LoginPage } from './pages/LoginPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -22,7 +24,6 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false)
 
   useEffect(() => {
-    // loadConfig() automatski daje build config (env vars) ili localStorage
     const config = loadConfig()
     if (config) {
       initFirebase(config)
@@ -48,44 +49,35 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter basename="/DII/">
-      <Routes>
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/"
-          element={
+    <ToastProvider>
+      <BrowserRouter basename="/DII/">
+        <Routes>
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/" element={
             <RequireAuth user={user}>
               <Layout user={user!}><DashboardPage /></Layout>
             </RequireAuth>
-          }
-        />
-        <Route
-          path="/upload"
-          element={
+          } />
+          <Route path="/upload" element={
             <RequireAuth user={user}>
               <Layout user={user!}><UploadPage /></Layout>
             </RequireAuth>
-          }
-        />
-        <Route
-          path="/imports"
-          element={
+          } />
+          <Route path="/imports" element={
             <RequireAuth user={user}>
               <Layout user={user!}><ImportsPage /></Layout>
             </RequireAuth>
-          }
-        />
-        <Route
-          path="/imports/:id"
-          element={
+          } />
+          <Route path="/imports/:id" element={
             <RequireAuth user={user}>
               <Layout user={user!}><ImportDetailPage /></Layout>
             </RequireAuth>
-          }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+          } />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+        <ToastContainer />
+      </BrowserRouter>
+    </ToastProvider>
   )
 }
