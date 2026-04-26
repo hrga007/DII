@@ -12,6 +12,7 @@ import { UploadPage } from './pages/UploadPage'
 import { ImportsPage } from './pages/ImportsPage'
 import { ImportDetailPage } from './pages/ImportDetailPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { InstitutionsPage } from './pages/InstitutionsPage'
 
 function RequireAuth({ user, children }: { user: User | null; children: React.ReactNode }) {
   if (!isInitialized()) return <Navigate to="/settings" replace />
@@ -72,6 +73,11 @@ export default function App() {
           <Route path="/imports/:id" element={
             <RequireAuth user={user}>
               <Layout user={user!}><ImportDetailPage /></Layout>
+            </RequireAuth>
+          } />
+          <Route path="/institutions" element={
+            <RequireAuth user={user}>
+              <Layout user={user!}><InstitutionsPage /></Layout>
             </RequireAuth>
           } />
           <Route path="*" element={<Navigate to="/" replace />} />

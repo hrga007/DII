@@ -10,6 +10,7 @@ import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
 import type { InstalledResource } from '../models/installedResource'
 import { StatusBadge, SeverityBadge } from '../components/StatusBadge'
+import { exportToExcel, exportToCsv } from '../utils/exportUtils'
 
 type Tab = 'financije' | 'resursi' | 'issues'
 
@@ -124,21 +125,39 @@ export function ImportDetailPage() {
       {/* ── Financije ── */}
       {tab === 'financije' && (
         <>
-          {/* Filteri kategorija */}
-          <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
-            {(['all', ...groups] as const).map((g) => (
-              <button
-                key={g}
-                onClick={() => setFilter(g)}
-                className={`shrink-0 text-xs px-3 py-1.5 rounded-full transition-colors ${
-                  filter === g
-                    ? 'bg-blue-700 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {g === 'all' ? 'Sve' : GROUP_LABELS[g] ?? g}
-              </button>
-            ))}
+          {/* Filteri kategorija + Export gumbi */}
+          <div className="flex flex-col gap-2 mb-3">
+            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
+              {(['all', ...groups] as const).map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setFilter(g)}
+                  className={`shrink-0 text-xs px-3 py-1.5 rounded-full transition-colors ${
+                    filter === g
+                      ? 'bg-blue-700 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {g === 'all' ? 'Sve' : GROUP_LABELS[g] ?? g}
+                </button>
+              ))}
+            </div>
+            {filteredEntries.length > 0 && (
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => exportToExcel(filteredEntries, `${batch.fileName.replace(/\.[^.]+$/, '')}-financije.xlsx`)}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-green-700 text-white hover:bg-green-800 transition-colors"
+                >
+                  <span>⬇</span> Excel
+                </button>
+                <button
+                  onClick={() => exportToCsv(filteredEntries, `${batch.fileName.replace(/\.[^.]+$/, '')}-financije.csv`)}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-600 text-white hover:bg-gray-700 transition-colors"
+                >
+                  <span>⬇</span> CSV
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Mobilne kartice */}

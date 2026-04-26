@@ -10,10 +10,11 @@ interface Props {
 }
 
 const NAV = [
-  { to: '/',         label: 'Dashboard', icon: '📊' },
-  { to: '/upload',   label: 'Uvoz',      icon: '📂' },
-  { to: '/imports',  label: 'Batch-evi', icon: '📋' },
-  { to: '/settings', label: 'Postavke',  icon: '⚙️' },
+  { to: '/',              label: 'Dashboard',  icon: '📊' },
+  { to: '/upload',        label: 'Uvoz',       icon: '📂' },
+  { to: '/imports',       label: 'Batch-evi',  icon: '📋' },
+  { to: '/institutions',  label: 'Institucije', icon: '🏛️' },
+  { to: '/settings',      label: 'Postavke',   icon: '⚙️' },
 ]
 
 export function Layout({ user, children }: Props) {
