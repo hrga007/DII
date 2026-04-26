@@ -47,7 +47,7 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter basename="/dii-webapp/">
+    <BrowserRouter basename="/DII/">
       <Routes>
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/login" element={<LoginPage />} />
