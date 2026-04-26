@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(python3 -c ' *)",
+      "Bash(node -e \"console.log\\('node available'\\)\")",
+      "Bash(where node *)",
+      "Bash(npm --version)",
+      "Bash(node -e ' *)",
+      "Bash(npm create *)",
+      "Bash(npx create-vite@latest . --template react-ts)",
+      "Bash(npx --yes create-vite@latest temp_init --template react-ts)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(git --version)",
+      "Bash(gh --version)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}

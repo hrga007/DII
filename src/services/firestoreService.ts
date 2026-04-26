@@ -1,0 +1,208 @@
+import {
+  collection,
+  doc,
+  addDoc,
+  setDoc,
+  getDoc,
+  getDocs,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  Timestamp,
+  writeBatch,
+  limit,
+} from 'firebase/firestore'
+import { getFirebaseDb } from '../config/firebase'
+import type { Institution } from '../models/institution'
+import type { ImportBatch } from '../models/importBatch'
+import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
+import type { InstalledResource } from '../models/installedResource'
+import type { AuditLog } from '../models/auditLog'
+
+function toTimestamp(d: Date): Timestamp {
+  return Timestamp.fromDate(d)
+}
+
+function fromTimestamp(t: Timestamp): Date {
+  return t.toDate()
+}
+
+// ─── Institutions ───────────────────────────────────────────────
+export async function upsertInstitution(inst: Institution): Promise<string> {
+  const db = getFirebaseDb()
+  const q = query(collection(db, 'institutions'), where('oib', '==', inst.oib))
+  const snap = await getDocs(q)
+  if (!snap.empty) {
+    const id = snap.docs[0].id
+    await setDoc(doc(db, 'institutions', id), {
+      ...inst,
+      createdAt: toTimestamp(inst.createdAt),
+      updatedAt: toTimestamp(new Date()),
+    })
+    return id
+  }
+  const ref = await addDoc(collection(db, 'institutions'), {
+    ...inst,
+    createdAt: toTimestamp(inst.createdAt),
+    updatedAt: toTimestamp(new Date()),
+  })
+  return ref.id
+}
+
+export async function getInstitutions(): Promise<Institution[]> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(query(collection(db, 'institutions'), orderBy('name')))
+  return snap.docs.map((d) => {
+    const data = d.data()
+    return {
+      ...data,
+      id: d.id,
+      createdAt: fromTimestamp(data.createdAt),
+      updatedAt: fromTimestamp(data.updatedAt),
+    } as Institution
+  })
+}
+
+// ─── Import Batches ──────────────────────────────────────────────
+export async function createBatch(batch: ImportBatch): Promise<string> {
+  const db = getFirebaseDb()
+  const ref = await addDoc(collection(db, 'importBatches'), {
+    ...batch,
+    uploadedAt: toTimestamp(batch.uploadedAt),
+  })
+  return ref.id
+}
+
+export async function updateBatch(id: string, data: Partial<ImportBatch>): Promise<void> {
+  const db = getFirebaseDb()
+  await setDoc(doc(db, 'importBatches', id), data, { merge: true })
+}
+
+export async function getBatches(): Promise<ImportBatch[]> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(
+    query(collection(db, 'importBatches'), orderBy('uploadedAt', 'desc'))
+  )
+  return snap.docs.map((d) => {
+    const data = d.data()
+    return { ...data, id: d.id, uploadedAt: fromTimestamp(data.uploadedAt) } as ImportBatch
+  })
+}
+
+export async function getBatch(id: string): Promise<ImportBatch | null> {
+  const db = getFirebaseDb()
+  const snap = await getDoc(doc(db, 'importBatches', id))
+  if (!snap.exists()) return null
+  const data = snap.data()
+  return { ...data, id: snap.id, uploadedAt: fromTimestamp(data.uploadedAt) } as ImportBatch
+}
+
+export async function deleteBatch(id: string): Promise<void> {
+  const db = getFirebaseDb()
+  await deleteDoc(doc(db, 'importBatches', id))
+}
+
+export async function batchExistsByHash(fileHash: string): Promise<string | null> {
+  const db = getFirebaseDb()
+  const q = query(
+    collection(db, 'importBatches'),
+    where('fileHash', '==', fileHash),
+    limit(1)
+  )
+  const snap = await getDocs(q)
+  return snap.empty ? null : snap.docs[0].id
+}
+
+// ─── Financial Entries (bulk write) ─────────────────────────────
+export async function saveFinancialEntries(entries: FinancialEntry[]): Promise<void> {
+  const db = getFirebaseDb()
+  const CHUNK = 400
+  for (let i = 0; i < entries.length; i += CHUNK) {
+    const batch = writeBatch(db)
+    entries.slice(i, i + CHUNK).forEach((e) => {
+      const ref = doc(collection(db, 'financialEntries'))
+      batch.set(ref, { ...e, createdAt: toTimestamp(e.createdAt) })
+    })
+    await batch.commit()
+  }
+}
+
+export async function getFinancialEntries(batchId: string): Promise<FinancialEntry[]> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(
+    query(collection(db, 'financialEntries'), where('batchId', '==', batchId))
+  )
+  return snap.docs.map((d) => {
+    const data = d.data()
+    return { ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as FinancialEntry
+  })
+}
+
+export async function getAllFinancialEntries(): Promise<FinancialEntry[]> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(collection(db, 'financialEntries'))
+  return snap.docs.map((d) => {
+    const data = d.data()
+    return { ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as FinancialEntry
+  })
+}
+
+// ─── Import Issues ───────────────────────────────────────────────
+export async function saveImportIssues(issues: ImportIssue[]): Promise<void> {
+  const db = getFirebaseDb()
+  const CHUNK = 400
+  for (let i = 0; i < issues.length; i += CHUNK) {
+    const batch = writeBatch(db)
+    issues.slice(i, i + CHUNK).forEach((issue) => {
+      const ref = doc(collection(db, 'importIssues'))
+      batch.set(ref, { ...issue, createdAt: toTimestamp(issue.createdAt) })
+    })
+    await batch.commit()
+  }
+}
+
+export async function getImportIssues(batchId: string): Promise<ImportIssue[]> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(
+    query(collection(db, 'importIssues'), where('batchId', '==', batchId))
+  )
+  return snap.docs.map((d) => {
+    const data = d.data()
+    return { ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as ImportIssue
+  })
+}
+
+// ─── Installed Resources ─────────────────────────────────────────
+export async function saveInstalledResources(resources: InstalledResource[]): Promise<void> {
+  const db = getFirebaseDb()
+  const CHUNK = 400
+  for (let i = 0; i < resources.length; i += CHUNK) {
+    const batch = writeBatch(db)
+    resources.slice(i, i + CHUNK).forEach((r) => {
+      const ref = doc(collection(db, 'installedResources'))
+      batch.set(ref, { ...r, createdAt: toTimestamp(r.createdAt) })
+    })
+    await batch.commit()
+  }
+}
+
+export async function getInstalledResources(batchId: string): Promise<InstalledResource[]> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(
+    query(collection(db, 'installedResources'), where('batchId', '==', batchId))
+  )
+  return snap.docs.map((d) => {
+    const data = d.data()
+    return { ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as InstalledResource
+  })
+}
+
+// ─── Audit Logs ──────────────────────────────────────────────────
+export async function addAuditLog(log: AuditLog): Promise<void> {
+  const db = getFirebaseDb()
+  await addDoc(collection(db, 'auditLogs'), {
+    ...log,
+    timestamp: toTimestamp(log.timestamp),
+  })
+}

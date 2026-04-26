@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read, write: if isLoggedIn() && request.auth.uid == userId;
+    }
+
+    // Institutions — read/write za sve prijavljene
+    match /institutions/{id} {
+      allow read, write: if isLoggedIn();
+    }
+
+    // Import batches — čitanje za sve prijavljene, brisanje samo admin
+    match /importBatches/{id} {
+      allow read, create, update: if isLoggedIn();
+      allow delete: if isLoggedIn() && request.auth.token.admin == true;
+    }
+
+    // Import issues — read/create za sve prijavljene
+    match /importIssues/{id} {
+      allow read, create: if isLoggedIn();
+      allow update, delete: if request.auth.token.admin == true;
+    }
+
+    // Financial entries — read/create za sve prijavljene
+    match /financialEntries/{id} {
+      allow read, create: if isLoggedIn();
+      allow update, delete: if request.auth.token.admin == true;
+    }
+
+    // Installed resources — read/create za sve prijavljene
+    match /installedResources/{id} {
+      allow read, create: if isLoggedIn();
+      allow update, delete: if request.auth.token.admin == true;
+    }
+
+    // Audit logs — samo pisanje za prijavljene, čitanje samo admin
+    match /auditLogs/{id} {
+      allow create: if isLoggedIn();
+      allow read: if request.auth.token.admin == true;
+    }
+  }
+}
