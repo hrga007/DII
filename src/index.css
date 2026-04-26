@@ -1,33 +1,218 @@
 @import "tailwindcss";
 
-*, *::before, *::after {
-  box-sizing: border-box;
-}
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
   margin: 0;
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  background-color: var(--s-pg);
+  color: var(--t1);
+  transition: background-color 0.2s, color 0.2s;
 }
 
-#root {
-  min-height: 100svh;
-}
+#root { min-height: 100svh; }
 
+/* ═══════════════════════════════════════════════════════
+   ANIMACIJE
+═══════════════════════════════════════════════════════ */
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
-.animate-fade-in {
-  animation: fade-in 0.2s ease-out;
-}
+.animate-fade-in { animation: fade-in 0.2s ease-out; }
 
 @keyframes slide-in {
   from { transform: translateX(100%); }
   to   { transform: translateX(0); }
 }
+.animate-slide-in { animation: slide-in 0.25s ease-out; }
 
-.animate-slide-in {
-  animation: slide-in 0.25s ease-out;
+/* ═══════════════════════════════════════════════════════
+   CSS VARIJABLE — PALETE I SURFACE
+═══════════════════════════════════════════════════════ */
+:root {
+  /* ── Plava paleta (default) ── */
+  --p:       #1d4ed8;
+  --p-h:     #1e40af;
+  --p-a:     #1e3a8a;
+  --p-lt:    #eff6ff;
+  --p-tx:    #1d4ed8;
+  --p-rg:    #3b82f6;
+  --p-hdr:   #1e3a8a;
+  --p-hd2:   #dbeafe;
+  --p-mu:    #bfdbfe;
+
+  /* ── Površine — svjetlo ── */
+  --s-pg:    #f1f5f9;
+  --s-cd:    #ffffff;
+  --s-rz:    #f8fafc;
+  --t1:      #0f172a;
+  --t2:      #334155;
+  --t3:      #64748b;
+  --t4:      #94a3b8;
+  --bd:      #e2e8f0;
+  --bd2:     #f1f5f9;
 }
+
+[data-palette="red"] {
+  --p:       #c41a1a;
+  --p-h:     #a31515;
+  --p-a:     #7f1d1d;
+  --p-lt:    #fff0f0;
+  --p-tx:    #c41a1a;
+  --p-rg:    #f05050;
+  --p-hdr:   #3a0808;
+  --p-hd2:   #fecaca;
+  --p-mu:    #fecaca;
+}
+
+[data-palette="yellow"] {
+  --p:       #b45309;
+  --p-h:     #92400e;
+  --p-a:     #78350f;
+  --p-lt:    #fffbeb;
+  --p-tx:    #92400e;
+  --p-rg:    #f59e0b;
+  --p-hdr:   #1c0a00;
+  --p-hd2:   #fde68a;
+  --p-mu:    #fde68a;
+}
+
+.dark {
+  --s-pg:    #080c14;
+  --s-cd:    #0d1117;
+  --s-rz:    #161b22;
+  --t1:      #e6edf3;
+  --t2:      #8b949e;
+  --t3:      #6e7681;
+  --t4:      #484f58;
+  --bd:      #30363d;
+  --bd2:     #21262d;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SEMANTIČKE UTILITY KLASE
+═══════════════════════════════════════════════════════ */
+
+/* Primarna gumba */
+.btn-primary {
+  background-color: var(--p);
+  color: #fff !important;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+.btn-primary:hover:not(:disabled)  { background-color: var(--p-h); }
+.btn-primary:active:not(:disabled) { background-color: var(--p-a); }
+.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--p-rg); }
+
+/* Header / navigacija */
+.hdr-bg  { background-color: var(--p-hdr); }
+.hdr-tx  { color: var(--p-hd2); }
+
+/* Aktivno stanje (tab, filter, nav) */
+.act-bg  { background-color: var(--p) !important; }
+.act-tx  { color: #fff !important; }
+
+/* Primarni tekst / naglasak */
+.p-tx    { color: var(--p-tx); }
+.p-lt-bg { background-color: var(--p-lt); }
+.p-brd   { border-color: var(--p-rg) !important; }
+
+/* Focus ring za inpute */
+.p-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--p-rg);
+  border-color: var(--p-rg);
+}
+
+/* Surface */
+.pg-bg   { background-color: var(--s-pg); }
+.card-bg { background-color: var(--s-cd); }
+
+/* Spinner — prati primarnu boju */
+.spin-primary {
+  border-color: var(--p);
+  border-top-color: transparent;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TAMNI MOD — override Tailwind utility klasa
+   (Unlayered CSS pobjeđuje Tailwind @layer utilities)
+═══════════════════════════════════════════════════════ */
+
+/* Pozadine */
+.dark .bg-white      { background-color: var(--s-cd) !important; }
+.dark .bg-gray-50    { background-color: var(--s-rz) !important; }
+.dark .bg-gray-100   { background-color: var(--s-rz) !important; }
+
+/* Tekst */
+.dark .text-gray-900 { color: var(--t1) !important; }
+.dark .text-gray-800 { color: var(--t1) !important; }
+.dark .text-gray-700 { color: var(--t2) !important; }
+.dark .text-gray-600 { color: var(--t2) !important; }
+.dark .text-gray-500 { color: var(--t3) !important; }
+.dark .text-gray-400 { color: var(--t4) !important; }
+
+/* Obrubi */
+.dark .border-gray-200 { border-color: var(--bd) !important; }
+.dark .border-gray-100 { border-color: var(--bd2) !important; }
+.dark .border-gray-300 { border-color: var(--bd) !important; }
+
+/* Razdjeline (divide) */
+.dark .divide-gray-100 > * + * { border-color: var(--bd2) !important; }
+.dark .divide-gray-200 > * + * { border-color: var(--bd) !important; }
+
+/* Hover pozadine */
+.dark .hover\:bg-gray-50:hover  { background-color: var(--s-rz) !important; }
+.dark .hover\:bg-gray-100:hover { background-color: var(--s-rz) !important; }
+
+/* Inputi */
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark textarea,
+.dark select {
+  background-color: var(--s-rz) !important;
+  color: var(--t1) !important;
+  border-color: var(--bd) !important;
+}
+.dark input::placeholder { color: var(--t4) !important; }
+
+/* Status boje u tamnom modu */
+.dark .bg-blue-50     { background-color: #0d1b3e !important; }
+.dark .bg-blue-100    { background-color: #1e3a6e !important; }
+.dark .bg-green-50    { background-color: #052e16 !important; }
+.dark .bg-green-100   { background-color: #14532d !important; }
+.dark .bg-red-50      { background-color: #2d0a0a !important; }
+.dark .bg-red-100     { background-color: #4a1111 !important; }
+.dark .bg-yellow-50   { background-color: #1c1000 !important; }
+.dark .bg-yellow-100  { background-color: #3a2000 !important; }
+.dark .bg-purple-50   { background-color: #1e0a3e !important; }
+
+.dark .text-blue-700  { color: #93c5fd !important; }
+.dark .text-blue-800  { color: #bfdbfe !important; }
+.dark .text-green-700 { color: #86efac !important; }
+.dark .text-green-800 { color: #bbf7d0 !important; }
+.dark .text-red-700   { color: #fca5a5 !important; }
+.dark .text-red-800   { color: #fecaca !important; }
+.dark .text-red-600   { color: #f87171 !important; }
+.dark .text-yellow-600{ color: #fcd34d !important; }
+.dark .text-yellow-700{ color: #fde68a !important; }
+.dark .text-yellow-800{ color: #fef3c7 !important; }
+.dark .text-purple-700{ color: #d8b4fe !important; }
+.dark .border-red-200 { border-color: #7f1d1d !important; }
+.dark .border-green-200{ border-color: #14532d !important; }
+.dark .bg-green-700   { background-color: #15803d !important; }
+.dark .hover\:bg-green-800:hover { background-color: #166534 !important; }
+
+/* Tablica u tamnom modu */
+.dark thead.bg-gray-50 { background-color: var(--s-rz) !important; }
+.dark tbody tr:hover   { background-color: var(--s-rz) !important; }
+
+/* Scrollbar */
+.dark ::-webkit-scrollbar       { width: 6px; height: 6px; }
+.dark ::-webkit-scrollbar-track { background: var(--s-pg); }
+.dark ::-webkit-scrollbar-thumb { background: var(--bd); border-radius: 3px; }
+
+/* Spinner plava → primarna */
+.dark .border-blue-600,
+.border-blue-600 { border-color: var(--p) !important; }

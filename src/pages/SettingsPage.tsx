@@ -1,13 +1,8 @@
 import { useState, type FormEvent, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  saveConfig,
-  loadConfig,
-  clearConfig,
-  initFirebase,
-  isInitialized,
-  getBuildConfig,
-  type FirebaseConfig,
+  saveConfig, loadConfig, clearConfig, initFirebase,
+  isInitialized, getBuildConfig, type FirebaseConfig,
 } from '../config/firebase'
 
 const FIELDS: { key: keyof FirebaseConfig; label: string; placeholder: string }[] = [
@@ -25,11 +20,10 @@ const EMPTY: FirebaseConfig = {
 }
 
 export function SettingsPage() {
-  const [config, setConfig] = useState<FirebaseConfig>(EMPTY)
-  const [status, setStatus] = useState<'idle' | 'connecting' | 'ok' | 'error'>('idle')
+  const [config,   setConfig]   = useState<FirebaseConfig>(EMPTY)
+  const [status,   setStatus]   = useState<'idle' | 'connecting' | 'ok' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
   const navigate = useNavigate()
-
   const hasBuildConfig = getBuildConfig() !== null
 
   useEffect(() => {
@@ -55,26 +49,21 @@ export function SettingsPage() {
       setStatus('error')
       return
     }
-    setStatus('connecting')
-    setErrorMsg('')
+    setStatus('connecting'); setErrorMsg('')
     try {
       await initFirebase(config)
       saveConfig(config)
       setStatus('ok')
     } catch (err) {
-      setErrorMsg(String(err))
-      setStatus('error')
+      setErrorMsg(String(err)); setStatus('error')
     }
   }
 
   function handleReset() {
-    clearConfig()
-    setConfig(EMPTY)
-    setStatus('idle')
-    setErrorMsg('')
+    clearConfig(); setConfig(EMPTY); setStatus('idle'); setErrorMsg('')
   }
 
-  // ── Kad je config upekan u build — samo info panel ─────────────────────────
+  // ── Build config panel ──────────────────────────────────────────
   if (hasBuildConfig) {
     const cfg = getBuildConfig()!
     return (
@@ -85,10 +74,9 @@ export function SettingsPage() {
             Konfigurirano u buildu
           </span>
         </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-3">
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
           <p className="text-sm text-gray-500 mb-4">
             Firebase konfiguracija je ugrađena u aplikaciju i automatski se koristi.
-            Nije potreban ručni unos.
           </p>
           {FIELDS.map(({ key, label }) => (
             <div key={key} className="flex items-center gap-3">
@@ -100,10 +88,7 @@ export function SettingsPage() {
           ))}
         </div>
         <div className="mt-4 text-center">
-          <button
-            onClick={() => navigate('/login')}
-            className="text-sm text-blue-700 hover:underline"
-          >
+          <button onClick={() => navigate('/login')} className="text-sm p-tx hover:underline">
             Idi na prijavu →
           </button>
         </div>
@@ -111,24 +96,21 @@ export function SettingsPage() {
     )
   }
 
-  // ── Fallback: ručni unos za lokalni razvoj ─────────────────────────────────
+  // ── Ručni unos ──────────────────────────────────────────────────
   return (
     <div className="max-w-2xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-gray-800">Firebase Postavke</h1>
         {status === 'ok' && (
-          <span className="bg-green-100 text-green-700 text-xs font-medium px-3 py-1 rounded-full">
-            Povezano
-          </span>
+          <span className="bg-green-100 text-green-700 text-xs font-medium px-3 py-1 rounded-full">Povezano</span>
         )}
       </div>
 
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 mb-5 text-sm text-yellow-800">
         Ručni unos je aktivan jer aplikacija nije izgradena s Firebase env varijablama.
-        Za produkciju koristite GitHub Secrets.
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
         <form onSubmit={handleConnect} className="space-y-4">
           {FIELDS.map(({ key, label, placeholder }) => (
             <div key={key}>
@@ -138,14 +120,12 @@ export function SettingsPage() {
                 value={config[key]}
                 onChange={(e) => handleChange(key, e.target.value)}
                 placeholder={placeholder}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="p-ring w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
               />
             </div>
           ))}
           {status === 'error' && errorMsg && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
-              {errorMsg}
-            </div>
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">{errorMsg}</div>
           )}
           {status === 'ok' && (
             <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg px-3 py-2">
@@ -156,7 +136,7 @@ export function SettingsPage() {
             <button
               type="submit"
               disabled={status === 'connecting'}
-              className="flex-1 bg-blue-700 text-white py-2 rounded-lg font-medium hover:bg-blue-800 transition-colors disabled:opacity-60"
+              className="btn-primary flex-1 py-2 rounded-lg font-medium"
             >
               {status === 'connecting' ? 'Povezivanje...' : 'Poveži'}
             </button>
@@ -173,7 +153,7 @@ export function SettingsPage() {
 
       {status === 'ok' && (
         <div className="mt-4 text-center">
-          <button onClick={() => navigate('/login')} className="text-sm text-blue-700 hover:underline">
+          <button onClick={() => navigate('/login')} className="text-sm p-tx hover:underline">
             Idi na prijavu →
           </button>
         </div>

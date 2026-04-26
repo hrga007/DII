@@ -5,6 +5,15 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DII IT Ulaganja</title>
+    <!-- Prevencija FOUC: postavi temu prije renderiranja -->
+    <script>
+      (function () {
+        var m = localStorage.getItem('ui-mode') || 'dark';
+        var p = localStorage.getItem('ui-palette') || 'red';
+        if (m === 'dark') document.documentElement.classList.add('dark');
+        document.documentElement.dataset.palette = p;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

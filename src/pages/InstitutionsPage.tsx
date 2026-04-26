@@ -105,7 +105,7 @@ export function InstitutionsPage() {
                   className="w-full flex items-center gap-3 p-4 sm:p-5 text-left hover:bg-gray-50 transition-colors"
                 >
                   {/* Icon */}
-                  <div className="shrink-0 w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">
+                  <div className="shrink-0 w-10 h-10 rounded-xl p-lt-bg flex items-center justify-center p-tx font-bold text-sm">
                     {row.institution.name.charAt(0).toUpperCase()}
                   </div>
 
@@ -162,7 +162,7 @@ export function InstitutionsPage() {
                               <span>👤 {row.institution.contactName}</span>
                             )}
                             {row.institution.contactEmail && (
-                              <a href={`mailto:${row.institution.contactEmail}`} className="text-blue-600 hover:underline">
+                              <a href={`mailto:${row.institution.contactEmail}`} className="p-tx hover:underline">
                                 ✉️ {row.institution.contactEmail}
                               </a>
                             )}
@@ -178,10 +178,13 @@ export function InstitutionsPage() {
                             <Link
                               key={b.id}
                               to={`/imports/${b.id}`}
-                              className="flex items-center gap-3 px-5 py-3 hover:bg-blue-50 transition-colors group"
+                              className="flex items-center gap-3 px-5 py-3 transition-colors group hover:bg-gray-50"
                             >
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-700 group-hover:text-blue-700 truncate">
+                                <p className="text-sm font-medium text-gray-700 truncate" style={{ transition: 'color 0.15s' }}
+                                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--p-tx)')}
+                                  onMouseLeave={e => (e.currentTarget.style.color = '')}
+                                >
                                   {b.fileName}
                                 </p>
                                 <p className="text-xs text-gray-400 mt-0.5">
@@ -202,7 +205,7 @@ export function InstitutionsPage() {
                                   </span>
                                 </div>
                                 <StatusBadge status={b.processingStatus} />
-                                <span className="text-gray-300 group-hover:text-blue-400">›</span>
+                                <span className="text-gray-300 p-tx" style={{ opacity: 0.5 }}>›</span>
                               </div>
                             </Link>
                           ))}

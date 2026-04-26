@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import type { User } from 'firebase/auth'
 import { loadConfig, initFirebase, isInitialized } from './config/firebase'
 import { onAuthChange } from './services/authService'
+import { ThemeProvider } from './hooks/useTheme'
 import { ToastProvider } from './hooks/useToast'
 import { ToastContainer } from './components/ToastContainer'
 import { Layout } from './components/Layout'
@@ -50,6 +51,7 @@ export default function App() {
   }
 
   return (
+    <ThemeProvider>
     <ToastProvider>
       <BrowserRouter basename="/DII/">
         <Routes>
@@ -85,5 +87,6 @@ export default function App() {
         <ToastContainer />
       </BrowserRouter>
     </ToastProvider>
+    </ThemeProvider>
   )
 }

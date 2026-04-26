@@ -7,7 +7,7 @@ import { StatusBadge } from '../components/StatusBadge'
 export function ImportsPage() {
   const [batches, setBatches] = useState<ImportBatch[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error,   setError]   = useState('')
 
   useEffect(() => {
     getBatches()
@@ -19,7 +19,7 @@ export function ImportsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+        <div className="animate-spin h-8 w-8 border-4 spin-primary rounded-full" />
       </div>
     )
   }
@@ -31,7 +31,7 @@ export function ImportsPage() {
         <h1 className="text-xl font-bold text-gray-800">Import batch-evi</h1>
         <Link
           to="/upload"
-          className="bg-blue-700 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-800 transition-colors"
+          className="btn-primary text-sm px-4 py-2 rounded-lg"
         >
           + Novi uvoz
         </Link>
@@ -44,13 +44,16 @@ export function ImportsPage() {
         </div>
       ) : (
         <>
-          {/* ── Mobilni prikaz: kartice ── */}
+          {/* Mobilni prikaz: kartice */}
           <div className="sm:hidden space-y-3">
             {batches.map((b) => (
               <Link
                 key={b.id}
                 to={`/imports/${b.id}`}
-                className="block bg-white rounded-2xl border border-gray-200 p-4 hover:border-blue-300 transition-colors active:bg-gray-50"
+                className="block bg-white rounded-2xl border border-gray-200 p-4 transition-colors active:bg-gray-50"
+                style={{ textDecoration: 'none' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--p-rg)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = '')}
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <p className="font-semibold text-gray-800 text-sm leading-tight">{b.fileName}</p>
@@ -62,27 +65,25 @@ export function ImportsPage() {
                 <div className="flex gap-3 text-xs">
                   {b.errorCount > 0 ? (
                     <span className="flex items-center gap-1 text-red-600 font-medium">
-                      <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
-                      {b.errorCount} grešaka
+                      <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{b.errorCount} grešaka
                     </span>
                   ) : (
                     <span className="text-gray-400">0 grešaka</span>
                   )}
                   {b.warningCount > 0 ? (
                     <span className="flex items-center gap-1 text-yellow-600 font-medium">
-                      <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />
-                      {b.warningCount} upozorenja
+                      <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />{b.warningCount} upozorenja
                     </span>
                   ) : (
                     <span className="text-gray-400">0 upozorenja</span>
                   )}
-                  <span className="ml-auto text-blue-600 font-medium">Detalji →</span>
+                  <span className="ml-auto p-tx font-medium">Detalji →</span>
                 </div>
               </Link>
             ))}
           </div>
 
-          {/* ── Desktop prikaz: tablica ── */}
+          {/* Desktop prikaz: tablica */}
           <div className="hidden sm:block bg-white rounded-2xl border border-gray-200 overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -114,7 +115,7 @@ export function ImportsPage() {
                         : <span className="text-gray-400">0</span>}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link to={`/imports/${b.id}`} className="text-blue-600 hover:underline text-xs font-medium">
+                      <Link to={`/imports/${b.id}`} className="p-tx hover:underline text-xs font-medium">
                         Detalji →
                       </Link>
                     </td>

@@ -71,7 +71,7 @@ export function ImportDetailPage() {
 
   return (
     <div>
-      <Link to="/imports" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mb-4">
+      <Link to="/imports" className="inline-flex items-center gap-1 text-sm p-tx hover:underline mb-4">
         ← Batch-evi
       </Link>
 
@@ -108,14 +108,17 @@ export function ImportDetailPage() {
             onClick={() => setTab(key)}
             className={`shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
               tab === key
-                ? 'bg-blue-700 text-white'
+                ? 'act-bg act-tx'
                 : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
             }`}
           >
             {label}
-            <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
-              tab === key ? 'bg-blue-600' : 'bg-gray-100 text-gray-500'
-            }`}>
+            <span
+              className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full"
+              style={tab === key
+                ? { backgroundColor: 'rgba(0,0,0,0.2)', color: 'white' }
+                : { backgroundColor: 'var(--s-rz)', color: 'var(--t3)' }}
+            >
               {count}
             </span>
           </button>
@@ -134,7 +137,7 @@ export function ImportDetailPage() {
                   onClick={() => setFilter(g)}
                   className={`shrink-0 text-xs px-3 py-1.5 rounded-full transition-colors ${
                     filter === g
-                      ? 'bg-blue-700 text-white'
+                      ? 'act-bg act-tx'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >

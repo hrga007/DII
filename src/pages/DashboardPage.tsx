@@ -8,20 +8,16 @@ import { StatCard } from '../components/StatCard'
 const YEARS = [2024, 2025, 2026, 2027, 2028]
 
 const GROUP_LABELS: Record<string, string> = {
-  CAPEX: 'CAPEX',
+  CAPEX:      'CAPEX',
   ODRZAVANJE: 'Održavanje',
-  LICENCE: 'Licence',
-  OPEX: 'Operativni',
-  CLOUD: 'Cloud',
+  LICENCE:    'Licence',
+  OPEX:       'Operativni',
+  CLOUD:      'Cloud',
 }
 
-const GROUP_COLORS: Record<string, string> = {
-  CAPEX:      'bg-blue-500',
-  ODRZAVANJE: 'bg-indigo-500',
-  LICENCE:    'bg-violet-500',
-  OPEX:       'bg-cyan-500',
-  CLOUD:      'bg-sky-400',
-}
+const GROUP_COLORS: string[] = [
+  'bg-sky-500', 'bg-indigo-500', 'bg-violet-500', 'bg-cyan-500', 'bg-blue-400',
+]
 
 function eur(v: number): string {
   if (v >= 1_000_000)
@@ -36,10 +32,10 @@ function eurFull(v: number): string {
 }
 
 export function DashboardPage() {
-  const [batches, setBatches] = useState<ImportBatch[]>([])
-  const [entries, setEntries] = useState<FinancialEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [yearFilter, setYearFilter] = useState<number | 'all'>('all')
+  const [batches,     setBatches]     = useState<ImportBatch[]>([])
+  const [entries,     setEntries]     = useState<FinancialEntry[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [yearFilter,  setYearFilter]  = useState<number | 'all'>('all')
 
   useEffect(() => {
     Promise.all([getBatches(), getAllFinancialEntries()])
@@ -47,9 +43,9 @@ export function DashboardPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const totalErrors = batches.reduce((s, b) => s + b.errorCount, 0)
+  const totalErrors   = batches.reduce((s, b) => s + b.errorCount, 0)
   const totalWarnings = batches.reduce((s, b) => s + b.warningCount, 0)
-  const institutions = new Set(batches.map((b) => b.institutionId).filter(Boolean)).size
+  const institutions  = new Set(batches.map((b) => b.institutionId).filter(Boolean)).size
 
   const filtered = yearFilter === 'all' ? entries : entries.filter((e) => e.year === yearFilter)
 
@@ -62,27 +58,26 @@ export function DashboardPage() {
     year: y,
     sum: entries.filter((e) => e.year === y).reduce((s, e) => s + (e.normalizedValue ?? 0), 0),
   }))
-
   const maxYear = Math.max(...totalByYear.map((x) => x.sum), 1)
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+        <div className="animate-spin h-8 w-8 border-4 spin-primary rounded-full" />
       </div>
     )
   }
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-gray-800 mb-5">Dashboard</h1>
+      <h1 className="text-xl font-bold mb-5" style={{ color: 'var(--t1)' }}>Dashboard</h1>
 
-      {/* ── Stat cards 2×2 na mobitelu, 4×1 na desktopu ── */}
+      {/* Stat kartice */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Batch-evi" value={batches.length} color="blue" />
-        <StatCard label="Institucije" value={institutions} color="green" />
-        <StatCard label="Greške" value={totalErrors} color={totalErrors > 0 ? 'red' : 'gray'} />
-        <StatCard label="Upozorenja" value={totalWarnings} color={totalWarnings > 0 ? 'yellow' : 'gray'} />
+        <StatCard label="Batch-evi"  value={batches.length}  color="blue" />
+        <StatCard label="Institucije" value={institutions}   color="green" />
+        <StatCard label="Greške"     value={totalErrors}     color={totalErrors   > 0 ? 'red'    : 'gray'} />
+        <StatCard label="Upozorenja" value={totalWarnings}   color={totalWarnings > 0 ? 'yellow' : 'gray'} />
       </div>
 
       {entries.length === 0 ? (
@@ -91,23 +86,21 @@ export function DashboardPage() {
           <p className="text-base mb-4 font-medium">Nema podataka za prikaz</p>
           <Link
             to="/upload"
-            className="inline-block bg-blue-700 text-white text-sm px-5 py-2.5 rounded-lg hover:bg-blue-800 transition-colors"
+            className="btn-primary inline-block text-sm px-5 py-2.5 rounded-lg"
           >
             Uvezi Excel datoteku
           </Link>
         </div>
       ) : (
         <>
-          {/* ── Filter po godini ── */}
+          {/* Filter po godini */}
           <div className="flex gap-2 mb-5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
             {(['all', ...YEARS] as const).map((y) => (
               <button
                 key={y}
                 onClick={() => setYearFilter(y)}
-                className={`shrink-0 text-sm px-4 py-1.5 rounded-full transition-colors ${
-                  yearFilter === y
-                    ? 'bg-blue-700 text-white'
-                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                className={`shrink-0 text-sm px-4 py-1.5 rounded-full transition-colors border ${
+                  yearFilter === y ? 'act-bg act-tx border-transparent' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 {y === 'all' ? 'Sve godine' : y}
@@ -115,11 +108,11 @@ export function DashboardPage() {
             ))}
           </div>
 
-          {/* ── Bar chart po kategoriji ── */}
+          {/* Bar chart — po kategoriji */}
           <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-4">
             <h2 className="text-sm font-semibold text-gray-700 mb-4">Iznos po kategoriji (EUR)</h2>
             <div className="space-y-3">
-              {totalByGroup.map(({ group, sum }) => {
+              {totalByGroup.map(({ group, sum }, idx) => {
                 const max = Math.max(...totalByGroup.map((x) => x.sum), 1)
                 const pct = Math.round((sum / max) * 100)
                 return (
@@ -130,7 +123,7 @@ export function DashboardPage() {
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
                       <div
-                        className={`h-2.5 rounded-full transition-all duration-500 ${GROUP_COLORS[group] ?? 'bg-blue-500'}`}
+                        className={`h-2.5 rounded-full transition-all duration-500 ${GROUP_COLORS[idx % GROUP_COLORS.length]}`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -140,7 +133,7 @@ export function DashboardPage() {
             </div>
           </div>
 
-          {/* ── Bar chart po godini ── */}
+          {/* Bar chart — po godini */}
           <div className="bg-white rounded-2xl border border-gray-200 p-5">
             <h2 className="text-sm font-semibold text-gray-700 mb-5">Ukupno po godini (EUR)</h2>
             <div className="flex items-end gap-2 sm:gap-4 h-32">
@@ -148,13 +141,11 @@ export function DashboardPage() {
                 const pct = maxYear > 0 ? (sum / maxYear) * 100 : 0
                 return (
                   <div key={year} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-xs text-gray-500 tabular-nums hidden sm:block">
-                      {eur(sum)}
-                    </span>
+                    <span className="text-xs text-gray-500 tabular-nums hidden sm:block">{eur(sum)}</span>
                     <div className="w-full bg-gray-100 rounded-t-lg overflow-hidden relative" style={{ height: '80px' }}>
                       <div
-                        className="absolute bottom-0 left-0 right-0 bg-blue-600 rounded-t-lg transition-all duration-500"
-                        style={{ height: `${pct}%` }}
+                        className="absolute bottom-0 left-0 right-0 rounded-t-lg transition-all duration-500"
+                        style={{ height: `${pct}%`, backgroundColor: 'var(--p)' }}
                       />
                     </div>
                     <span className="text-xs font-semibold text-gray-600">{year}</span>
