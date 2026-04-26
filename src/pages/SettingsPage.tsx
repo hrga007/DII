@@ -6,25 +6,22 @@ import {
   clearConfig,
   initFirebase,
   isInitialized,
+  getBuildConfig,
   type FirebaseConfig,
 } from '../config/firebase'
 
 const FIELDS: { key: keyof FirebaseConfig; label: string; placeholder: string }[] = [
-  { key: 'apiKey', label: 'API Key', placeholder: 'AIzaSy...' },
-  { key: 'authDomain', label: 'Auth Domain', placeholder: 'project.firebaseapp.com' },
-  { key: 'projectId', label: 'Project ID', placeholder: 'my-project' },
-  { key: 'storageBucket', label: 'Storage Bucket', placeholder: 'my-project.appspot.com' },
+  { key: 'apiKey',            label: 'API Key',             placeholder: 'AIzaSy...' },
+  { key: 'authDomain',        label: 'Auth Domain',         placeholder: 'project.firebaseapp.com' },
+  { key: 'projectId',         label: 'Project ID',          placeholder: 'my-project' },
+  { key: 'storageBucket',     label: 'Storage Bucket',      placeholder: 'my-project.appspot.com' },
   { key: 'messagingSenderId', label: 'Messaging Sender ID', placeholder: '123456789' },
-  { key: 'appId', label: 'App ID', placeholder: '1:123456789:web:abc123' },
+  { key: 'appId',             label: 'App ID',              placeholder: '1:123456789:web:abc123' },
 ]
 
 const EMPTY: FirebaseConfig = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: '',
+  apiKey: '', authDomain: '', projectId: '',
+  storageBucket: '', messagingSenderId: '', appId: '',
 }
 
 export function SettingsPage() {
@@ -33,11 +30,17 @@ export function SettingsPage() {
   const [errorMsg, setErrorMsg] = useState('')
   const navigate = useNavigate()
 
+  const hasBuildConfig = getBuildConfig() !== null
+
   useEffect(() => {
+    if (hasBuildConfig) {
+      if (isInitialized()) setStatus('ok')
+      return
+    }
     const saved = loadConfig()
     if (saved) setConfig(saved)
     if (isInitialized()) setStatus('ok')
-  }, [])
+  }, [hasBuildConfig])
 
   function handleChange(key: keyof FirebaseConfig, value: string) {
     setConfig((prev) => ({ ...prev, [key]: value }))
@@ -71,6 +74,44 @@ export function SettingsPage() {
     setErrorMsg('')
   }
 
+  // ── Kad je config upekan u build — samo info panel ─────────────────────────
+  if (hasBuildConfig) {
+    const cfg = getBuildConfig()!
+    return (
+      <div className="max-w-2xl">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl font-bold text-gray-800">Firebase Postavke</h1>
+          <span className="bg-green-100 text-green-700 text-xs font-medium px-3 py-1 rounded-full">
+            Konfigurirano u buildu
+          </span>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-3">
+          <p className="text-sm text-gray-500 mb-4">
+            Firebase konfiguracija je ugrađena u aplikaciju i automatski se koristi.
+            Nije potreban ručni unos.
+          </p>
+          {FIELDS.map(({ key, label }) => (
+            <div key={key} className="flex items-center gap-3">
+              <span className="text-xs font-medium text-gray-500 w-44 shrink-0">{label}</span>
+              <span className="text-xs font-mono text-gray-700 bg-gray-50 border border-gray-100 rounded px-2 py-1 truncate">
+                {key === 'apiKey' ? cfg[key].slice(0, 8) + '••••••••' : cfg[key]}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => navigate('/login')}
+            className="text-sm text-blue-700 hover:underline"
+          >
+            Idi na prijavu →
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Fallback: ručni unos za lokalni razvoj ─────────────────────────────────
   return (
     <div className="max-w-2xl">
       <div className="flex items-center justify-between mb-6">
@@ -80,6 +121,11 @@ export function SettingsPage() {
             Povezano
           </span>
         )}
+      </div>
+
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 mb-5 text-sm text-yellow-800">
+        Ručni unos je aktivan jer aplikacija nije izgradena s Firebase env varijablama.
+        Za produkciju koristite GitHub Secrets.
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -96,7 +142,6 @@ export function SettingsPage() {
               />
             </div>
           ))}
-
           {status === 'error' && errorMsg && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
               {errorMsg}
@@ -107,7 +152,6 @@ export function SettingsPage() {
               Firebase uspješno inicijaliziran.
             </div>
           )}
-
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
@@ -121,7 +165,7 @@ export function SettingsPage() {
               onClick={handleReset}
               className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
             >
-              Reset veze
+              Reset
             </button>
           </div>
         </form>
@@ -129,19 +173,11 @@ export function SettingsPage() {
 
       {status === 'ok' && (
         <div className="mt-4 text-center">
-          <button
-            onClick={() => navigate('/login')}
-            className="text-sm text-blue-700 hover:underline"
-          >
+          <button onClick={() => navigate('/login')} className="text-sm text-blue-700 hover:underline">
             Idi na prijavu →
           </button>
         </div>
       )}
-
-      <p className="mt-6 text-xs text-gray-400">
-        Konfiguracija se sprema lokalno u preglednik (localStorage). Nije prikladna za
-        produkcijsko okruženje.
-      </p>
     </div>
   )
 }

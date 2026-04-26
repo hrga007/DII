@@ -22,6 +22,7 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false)
 
   useEffect(() => {
+    // loadConfig() automatski daje build config (env vars) ili localStorage
     const config = loadConfig()
     if (config) {
       initFirebase(config)
