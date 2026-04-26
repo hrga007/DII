@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { login } from '../services/authService'
 import { isInitialized } from '../config/firebase'
-import { WavingFlag } from '../components/WavingFlag'
+import { GlagoliticMatrix } from '../components/GlagoliticMatrix'
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
@@ -14,9 +14,8 @@ export function LoginPage() {
   if (!isInitialized()) {
     return (
       <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
-        {/* Flag background */}
-        <WavingFlag className="absolute inset-0 w-full h-full" opacity={0.35} />
-        <div className="absolute inset-0 bg-blue-950/70" />
+        <GlagoliticMatrix className="absolute inset-0 w-full h-full" />
+        <div className="absolute inset-0 bg-black/45" />
         <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm text-center">
           <div className="text-4xl mb-3">⚙️</div>
           <h2 className="text-blue-800 font-bold text-lg mb-2">Firebase nije konfiguriran</h2>
@@ -48,11 +47,11 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
-      {/* Waving Croatian flag — full-screen background */}
-      <WavingFlag className="absolute inset-0 w-full h-full" opacity={0.45} />
+      {/* Matrix glagoljica pozadina */}
+      <GlagoliticMatrix className="absolute inset-0 w-full h-full" />
 
-      {/* Dark overlay for readability */}
-      <div className="absolute inset-0 bg-blue-950/65" />
+      {/* Tamni overlay za čitljivost kartice */}
+      <div className="absolute inset-0 bg-black/45" />
 
       {/* Login card */}
       <div className="relative z-10 bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
