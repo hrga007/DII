@@ -11,6 +11,7 @@ import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
 import type { InstalledResource } from '../models/installedResource'
 import { StatusBadge, SeverityBadge } from '../components/StatusBadge'
 import { exportToExcel, exportToCsv } from '../utils/exportUtils'
+import { getAppSettings } from '../hooks/useAppSettings'
 
 type Tab = 'financije' | 'resursi' | 'issues'
 
@@ -145,22 +146,34 @@ export function ImportDetailPage() {
                 </button>
               ))}
             </div>
-            {filteredEntries.length > 0 && (
-              <div className="flex gap-2 justify-end">
-                <button
-                  onClick={() => exportToExcel(filteredEntries, `${batch.fileName.replace(/\.[^.]+$/, '')}-financije.xlsx`)}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-green-700 text-white hover:bg-green-800 transition-colors"
-                >
-                  <span>⬇</span> Excel
-                </button>
-                <button
-                  onClick={() => exportToCsv(filteredEntries, `${batch.fileName.replace(/\.[^.]+$/, '')}-financije.csv`)}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-600 text-white hover:bg-gray-700 transition-colors"
-                >
-                  <span>⬇</span> CSV
-                </button>
-              </div>
-            )}
+            {filteredEntries.length > 0 && (() => {
+              const defExport = getAppSettings().defaultExport
+              const baseName  = batch.fileName.replace(/\.[^.]+$/, '')
+              return (
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => exportToExcel(filteredEntries, `${baseName}-financije.xlsx`)}
+                    className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                      defExport === 'xlsx'
+                        ? 'btn-primary'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    <span>⬇</span> Excel
+                  </button>
+                  <button
+                    onClick={() => exportToCsv(filteredEntries, `${baseName}-financije.csv`)}
+                    className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                      defExport === 'csv'
+                        ? 'btn-primary'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    <span>⬇</span> CSV
+                  </button>
+                </div>
+              )
+            })()}
           </div>
 
           {/* Mobilne kartice */}
