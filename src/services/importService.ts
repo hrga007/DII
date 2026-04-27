@@ -1,4 +1,5 @@
-import { parseWorkbook, computeFileHash } from '../excel/parseWorkbook'
+import { parseWorkbook } from '../excel/parseWorkbook'
+import type { RawSheet } from '../excel/parseWorkbook'
 import { mapOpcePodaci, mapFinancialSheet, mapResursi } from '../excel/sheetMappers'
 import {
   batchExistsByHash,
@@ -37,27 +38,87 @@ export interface ImportResult {
   institutionName: string
 }
 
+// ─── Preview (bez spremanja u Firestore) ─────────────────────────
+export interface FilePreview {
+  fileName: string
+  fileSize: number
+  fileHash: string
+  institutionName: string
+  institutionOib: string
+  contactName: string
+  estimatedEntries: number
+  estimatedResources: number
+  missingSheets: string[]
+  isDuplicate: boolean
+  duplicateBatchId: string | null
+}
+
+async function hashBuffer(buffer: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', buffer)
+  return Array.from(new Uint8Array(digest))
+    .map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+function countDataRows(sheet: RawSheet): number {
+  return sheet.slice(2).filter(row => row && String(row[0] ?? '').trim()).length
+}
+
+export async function previewFile(file: File): Promise<FilePreview> {
+  const buffer = await file.arrayBuffer()
+
+  const fileHash = await hashBuffer(buffer)
+  const duplicateBatchId = await batchExistsByHash(fileHash)
+  const workbook = parseWorkbook(buffer)
+
+  const { institution } = mapOpcePodaci(workbook.opcePodaci, '')
+
+  const YEAR_COLS = 6
+  const estimatedEntries = [
+    workbook.capex, workbook.odrzavanje, workbook.operativni,
+    workbook.licence, workbook.cloud,
+  ].reduce((s, sh) => s + countDataRows(sh) * YEAR_COLS, 0)
+
+  const { resources } = mapResursi(workbook.resursi, '', '')
+
+  return {
+    fileName:           file.name,
+    fileSize:           file.size,
+    fileHash,
+    institutionName:    institution?.name        ?? '',
+    institutionOib:     institution?.oib         ?? '',
+    contactName:        institution?.contactName ?? '',
+    estimatedEntries,
+    estimatedResources: resources.length,
+    missingSheets:      workbook.missingSheets,
+    isDuplicate:        duplicateBatchId !== null,
+    duplicateBatchId,
+  }
+}
+
 export async function runImport(
   file: File,
-  onProgress: (p: ImportProgress) => void
+  onProgress: (p: ImportProgress) => void,
+  force = false          // true = preskoči provjeru duplikata
 ): Promise<ImportResult> {
   const user = currentUser()
   if (!user) throw new Error('Korisnik nije prijavljen')
 
   // 1. Hash
   onProgress({ step: 'hash', message: 'Računam hash datoteke...' })
-  const fileHash = await computeFileHash(file)
+  const buffer = await file.arrayBuffer()
+  const fileHash = await hashBuffer(buffer)
 
   // 2. Duplicate check
   onProgress({ step: 'duplicate_check', message: 'Provjeravam duplikate...' })
-  const existingId = await batchExistsByHash(fileHash)
-  if (existingId) {
-    throw new Error(`Ova datoteka je već uvezena (batch ID: ${existingId})`)
+  if (!force) {
+    const existingId = await batchExistsByHash(fileHash)
+    if (existingId) {
+      throw new Error(`Ova datoteka je već uvezena (batch ID: ${existingId})`)
+    }
   }
 
   // 3. Parse Excel
   onProgress({ step: 'parse', message: 'Parsiram Excel datoteku...' })
-  const buffer = await file.arrayBuffer()
   const workbook = parseWorkbook(buffer)
 
   // Create batch record (processing)

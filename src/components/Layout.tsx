@@ -13,7 +13,6 @@ interface Props {
 const NAV = [
   { to: '/',             label: 'Dashboard',  icon: '📊' },
   { to: '/upload',       label: 'Uvoz',       icon: '📂' },
-  { to: '/imports',      label: 'Batch-evi',  icon: '📋' },
   { to: '/institutions', label: 'Institucije', icon: '🏛️' },
   { to: '/settings',     label: 'Postavke',   icon: '⚙️' },
 ]
@@ -31,8 +30,11 @@ export function Layout({ user, children }: Props) {
     navigate('/login')
   }
 
-  const isActive = (to: string) =>
-    to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
+  const isActive = (to: string) => {
+    if (to === '/') return location.pathname === '/'
+    if (to === '/upload') return location.pathname.startsWith('/upload') || location.pathname.startsWith('/imports')
+    return location.pathname.startsWith(to)
+  }
 
   return (
     <div className="min-h-screen flex flex-col pg-bg">

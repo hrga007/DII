@@ -10,7 +10,6 @@ import { Layout } from './components/Layout'
 import { LoginPage } from './pages/LoginPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { UploadPage } from './pages/UploadPage'
-import { ImportsPage } from './pages/ImportsPage'
 import { ImportDetailPage } from './pages/ImportDetailPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { InstitutionsPage } from './pages/InstitutionsPage'
@@ -67,11 +66,7 @@ export default function App() {
               <Layout user={user!}><UploadPage /></Layout>
             </RequireAuth>
           } />
-          <Route path="/imports" element={
-            <RequireAuth user={user}>
-              <Layout user={user!}><ImportsPage /></Layout>
-            </RequireAuth>
-          } />
+          <Route path="/imports" element={<Navigate to="/upload?tab=batches" replace />} />
           <Route path="/imports/:id" element={
             <RequireAuth user={user}>
               <Layout user={user!}><ImportDetailPage /></Layout>
