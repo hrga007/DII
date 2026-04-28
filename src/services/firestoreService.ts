@@ -173,6 +173,18 @@ export async function getImportIssues(batchId: string): Promise<ImportIssue[]> {
   })
 }
 
+export async function getAllImportIssues(severity?: 'error' | 'warning'): Promise<ImportIssue[]> {
+  const db = getFirebaseDb()
+  const constraints = severity
+    ? [where('severity', '==', severity)]
+    : []
+  const snap = await getDocs(query(collection(db, 'importIssues'), ...constraints))
+  return snap.docs.map((d) => {
+    const data = d.data()
+    return { ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as ImportIssue
+  })
+}
+
 // ─── Installed Resources ─────────────────────────────────────────
 export async function saveInstalledResources(resources: InstalledResource[]): Promise<void> {
   const db = getFirebaseDb()

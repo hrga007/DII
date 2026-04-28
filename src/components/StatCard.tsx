@@ -3,22 +3,32 @@ interface Props {
   value: string | number
   sub?: string
   color?: 'blue' | 'green' | 'red' | 'yellow' | 'gray'
+  onClick?: () => void
 }
 
 const COLOR_MAP = {
-  blue: 'bg-blue-50 border-blue-200 text-blue-700',
-  green: 'bg-green-50 border-green-200 text-green-700',
-  red: 'bg-red-50 border-red-200 text-red-700',
+  blue:   'bg-blue-50   border-blue-200   text-blue-700',
+  green:  'bg-green-50  border-green-200  text-green-700',
+  red:    'bg-red-50    border-red-200    text-red-700',
   yellow: 'bg-yellow-50 border-yellow-200 text-yellow-700',
-  gray: 'bg-gray-50 border-gray-200 text-gray-700',
+  gray:   'bg-gray-50   border-gray-200   text-gray-700',
 }
 
-export function StatCard({ label, value, sub, color = 'gray' }: Props) {
+export function StatCard({ label, value, sub, color = 'gray', onClick }: Props) {
+  const clickable = Boolean(onClick)
   return (
-    <div className={`rounded-lg border p-4 ${COLOR_MAP[color]}`}>
+    <div
+      onClick={onClick}
+      className={`rounded-xl border p-4 transition-all ${COLOR_MAP[color]} ${
+        clickable ? 'cursor-pointer hover:brightness-95 hover:shadow-sm active:scale-[0.98]' : ''
+      }`}
+    >
       <p className="text-xs font-medium uppercase tracking-wide opacity-70">{label}</p>
       <p className="text-2xl font-bold mt-1">{value}</p>
       {sub && <p className="text-xs mt-1 opacity-60">{sub}</p>}
+      {clickable && (
+        <p className="text-xs mt-2 opacity-50 font-medium">Klikni za detalje →</p>
+      )}
     </div>
   )
 }

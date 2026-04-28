@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { getBatches, getAllFinancialEntries } from '../services/firestoreService'
+import { getBatches, getAllFinancialEntries, getAllImportIssues } from '../services/firestoreService'
 import type { ImportBatch } from '../models/importBatch'
-import type { FinancialEntry } from '../models/financialEntry'
+import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
 import { StatCard } from '../components/StatCard'
+import { SeverityBadge } from '../components/StatusBadge'
 import { getAppSettings } from '../hooks/useAppSettings'
 
 const YEARS = [2024, 2025, 2026, 2027, 2028]
@@ -22,6 +23,172 @@ function eurFull(v: number): string {
   }).format(v)
 }
 
+// ─── Issues modal ────────────────────────────────────────────────
+type ModalMode = 'error' | 'warning'
+
+interface IssuesModalProps {
+  mode: ModalMode
+  batches: ImportBatch[]
+  onClose: () => void
+}
+
+function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
+  const [issues,  setIssues]  = useState<ImportIssue[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter,  setFilter]  = useState<string>('all')
+
+  useEffect(() => {
+    getAllImportIssues(mode)
+      .then(setIssues)
+      .finally(() => setLoading(false))
+  }, [mode])
+
+  // Close on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const batchMap = new Map(batches.map(b => [b.id!, b]))
+
+  // Unique batch IDs that appear in filtered issues
+  const batchIds = [...new Set(issues.map(i => i.batchId))]
+  const filtered = filter === 'all' ? issues : issues.filter(i => i.batchId === filter)
+
+  const title  = mode === 'error' ? 'Greške' : 'Upozorenja'
+  const accent = mode === 'error' ? 'text-red-600' : 'text-yellow-600'
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col animate-fade-in"
+        style={{ maxHeight: 'min(90vh, 700px)' }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+          <div>
+            <h2 className={`text-base font-bold ${accent}`}>
+              {mode === 'error' ? '🔴' : '🟡'} {title}
+            </h2>
+            {!loading && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                {issues.length} {mode === 'error' ? 'grešaka' : 'upozorenja'} u{' '}
+                {batchIds.length} batch-eva
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors text-lg"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Batch filter */}
+        {!loading && batchIds.length > 1 && (
+          <div className="flex gap-1.5 px-5 py-3 border-b border-gray-100 overflow-x-auto shrink-0">
+            <button
+              onClick={() => setFilter('all')}
+              className={`shrink-0 text-xs px-3 py-1.5 rounded-full transition-colors ${
+                filter === 'all' ? 'act-bg act-tx' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Sve ({issues.length})
+            </button>
+            {batchIds.map(bid => {
+              const b = batchMap.get(bid)
+              const cnt = issues.filter(i => i.batchId === bid).length
+              return (
+                <button
+                  key={bid}
+                  onClick={() => setFilter(bid)}
+                  className={`shrink-0 text-xs px-3 py-1.5 rounded-full transition-colors max-w-[160px] truncate ${
+                    filter === bid ? 'act-bg act-tx' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  title={b?.fileName}
+                >
+                  {b ? b.fileName.replace(/\.[^.]+$/, '') : bid.slice(0, 8)} ({cnt})
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-3">
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin h-7 w-7 border-4 spin-primary rounded-full" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-16 text-gray-400">
+              <p className="text-3xl mb-2">✅</p>
+              <p className="text-sm">Nema {mode === 'error' ? 'grešaka' : 'upozorenja'}</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((iss) => {
+                const b = batchMap.get(iss.batchId)
+                return (
+                  <div
+                    key={iss.id}
+                    className="flex items-start gap-3 bg-gray-50 rounded-xl px-4 py-3"
+                  >
+                    <div className="mt-0.5 shrink-0">
+                      <SeverityBadge severity={iss.severity} />
+                    </div>
+                    <div className="flex-1 min-w-0 text-sm">
+                      <p className="text-gray-800">{iss.message}</p>
+                      <p className="text-gray-400 text-xs mt-0.5 truncate">
+                        {iss.sheetName} · {iss.rowLabel} · {iss.fieldName}
+                        {iss.originalValue ? ` · "${iss.originalValue}"` : ''}
+                      </p>
+                      {b && (
+                        <Link
+                          to={`/imports/${b.id}`}
+                          onClick={onClose}
+                          className="text-xs p-tx hover:underline mt-1 inline-block"
+                        >
+                          {b.importSummary?.institutionName
+                            ? `${b.importSummary.institutionName} — `
+                            : ''}
+                          {b.fileName} →
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {!loading && filtered.length > 0 && (
+          <div className="px-5 py-3 border-t border-gray-100 shrink-0 flex items-center justify-between">
+            <p className="text-xs text-gray-400">
+              Prikazano: {filtered.length} od {issues.length}
+            </p>
+            <button
+              onClick={onClose}
+              className="text-xs px-4 py-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+            >
+              Zatvori
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
 export function DashboardPage() {
   const appSettings = getAppSettings()
 
@@ -29,6 +196,8 @@ export function DashboardPage() {
   const [entries,    setEntries]    = useState<FinancialEntry[]>([])
   const [loading,    setLoading]    = useState(true)
   const [yearFilter, setYearFilter] = useState<number | 'all'>(appSettings.defaultYear)
+  const [modal,      setModal]      = useState<ModalMode | null>(null)
+  const closeModal = useCallback(() => setModal(null), [])
 
   useEffect(() => {
     Promise.all([getBatches(), getAllFinancialEntries()])
@@ -77,9 +246,24 @@ export function DashboardPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <StatCard label="Batch-evi"   value={batches.length} color="blue" />
         <StatCard label="Institucije" value={institutions}   color="green" />
-        <StatCard label="Greške"      value={totalErrors}    color={totalErrors   > 0 ? 'red'    : 'gray'} />
-        <StatCard label="Upozorenja"  value={totalWarnings}  color={totalWarnings > 0 ? 'yellow' : 'gray'} />
+        <StatCard
+          label="Greške"
+          value={totalErrors}
+          color={totalErrors > 0 ? 'red' : 'gray'}
+          onClick={totalErrors > 0 ? () => setModal('error') : undefined}
+        />
+        <StatCard
+          label="Upozorenja"
+          value={totalWarnings}
+          color={totalWarnings > 0 ? 'yellow' : 'gray'}
+          onClick={totalWarnings > 0 ? () => setModal('warning') : undefined}
+        />
       </div>
+
+      {/* Issues modal */}
+      {modal && (
+        <IssuesModal mode={modal} batches={batches} onClose={closeModal} />
+      )}
 
       {entries.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center text-gray-400">
