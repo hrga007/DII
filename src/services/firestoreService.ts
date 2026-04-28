@@ -100,6 +100,25 @@ export async function getBatch(id: string): Promise<ImportBatch | null> {
 
 export async function deleteBatch(id: string): Promise<void> {
   const db = getFirebaseDb()
+
+  // Cascade-delete all related documents in chunks of 400
+  const SUB: [string, string][] = [
+    ['financialEntries',  'batchId'],
+    ['importIssues',      'batchId'],
+    ['installedResources','batchId'],
+  ]
+  for (const [col, field] of SUB) {
+    const snap = await getDocs(query(collection(db, col), where(field, '==', id)))
+    const ids   = snap.docs.map(d => d.ref)
+    const CHUNK = 400
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const wb = writeBatch(db)
+      ids.slice(i, i + CHUNK).forEach(ref => wb.delete(ref))
+      await wb.commit()
+    }
+  }
+
+  // Finally delete the batch document itself
   await deleteDoc(doc(db, 'importBatches', id))
 }
 

@@ -4,7 +4,7 @@ import {
   previewFile, runImport,
   type FilePreview, type ImportProgress, type ImportResult,
 } from '../services/importService'
-import { getBatches } from '../services/firestoreService'
+import { getBatches, deleteBatch } from '../services/firestoreService'
 import { useToast } from '../hooks/useToast'
 import { StatusBadge } from '../components/StatusBadge'
 import type { ImportBatch } from '../models/importBatch'
@@ -201,10 +201,25 @@ export function UploadPage() {
   )
   const [queue,    setQueue]    = useState<QueueItem[]>([])
   const [dragging, setDragging] = useState(false)
-  const [batches,  setBatches]  = useState<ImportBatch[] | null>(null)
-  const [batchLoad, setBatchLoad] = useState(false)
+  const [batches,    setBatches]    = useState<ImportBatch[] | null>(null)
+  const [batchLoad,  setBatchLoad]  = useState(false)
+  const [confirmId,  setConfirmId]  = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const { showToast } = useToast()
+
+  async function handleDeleteBatch(id: string) {
+    setDeletingId(id); setConfirmId(null)
+    try {
+      await deleteBatch(id)
+      setBatches(prev => prev ? prev.filter(b => b.id !== id) : prev)
+      showToast('Batch uspješno obrisan', 'success')
+    } catch {
+      showToast('Greška pri brisanju batcha', 'error')
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   // Auto-load batch tab if opened via redirect
   useEffect(() => {
@@ -430,31 +445,50 @@ export function UploadPage() {
             <>
               {/* Mobilni prikaz */}
               <div className="sm:hidden space-y-3">
-                {batches.map((b) => (
-                  <Link key={b.id} to={`/imports/${b.id}`}
-                    className="block bg-white rounded-2xl border border-gray-200 p-4 active:bg-gray-50"
-                    style={{ textDecoration: 'none' }}
-                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--p-rg)')}
-                    onMouseLeave={e => (e.currentTarget.style.borderColor = '')}
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <p className="font-semibold text-gray-800 text-sm leading-tight">{b.fileName}</p>
-                      <StatusBadge status={b.processingStatus} />
+                {batches.map((b) => {
+                  const isConfirm  = confirmId  === b.id
+                  const isDeleting = deletingId === b.id
+                  return (
+                    <div
+                      key={b.id}
+                      className="bg-white rounded-2xl border border-gray-200 p-4"
+                    >
+                      <Link to={`/imports/${b.id}`} style={{ textDecoration: 'none' }}>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <p className="font-semibold text-gray-800 text-sm leading-tight">{b.fileName}</p>
+                          <StatusBadge status={b.processingStatus} />
+                        </div>
+                        <p className="text-xs text-gray-500 mb-3">
+                          {b.importSummary?.institutionName || '–'} · {b.uploadedAt.toLocaleDateString('hr-HR')}
+                        </p>
+                      </Link>
+                      <div className="flex gap-3 text-xs items-center">
+                        <span className={b.errorCount > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}>
+                          {b.errorCount} grešaka
+                        </span>
+                        <span className={b.warningCount > 0 ? 'text-yellow-600 font-medium' : 'text-gray-400'}>
+                          {b.warningCount} upoz.
+                        </span>
+                        <Link to={`/imports/${b.id}`} className="ml-auto p-tx font-medium">Detalji →</Link>
+                        {/* Delete */}
+                        {isDeleting ? (
+                          <span className="animate-spin h-3.5 w-3.5 border-2 border-red-400 border-t-transparent rounded-full" />
+                        ) : isConfirm ? (
+                          <>
+                            <button onClick={() => handleDeleteBatch(b.id!)}
+                              className="px-2 py-1 rounded bg-red-600 text-white font-medium">Obriši</button>
+                            <button onClick={() => setConfirmId(null)}
+                              className="px-2 py-1 rounded border border-gray-200 text-gray-500">Ne</button>
+                          </>
+                        ) : (
+                          <button onClick={() => setConfirmId(b.id!)}
+                            className="text-gray-300 hover:text-red-500 transition-colors px-1"
+                            title="Ukloni batch">🗑</button>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-500 mb-3">
-                      {b.importSummary?.institutionName || '–'} · {b.uploadedAt.toLocaleDateString('hr-HR')}
-                    </p>
-                    <div className="flex gap-3 text-xs">
-                      <span className={b.errorCount > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}>
-                        {b.errorCount} grešaka
-                      </span>
-                      <span className={b.warningCount > 0 ? 'text-yellow-600 font-medium' : 'text-gray-400'}>
-                        {b.warningCount} upoz.
-                      </span>
-                      <span className="ml-auto p-tx font-medium">Detalji →</span>
-                    </div>
-                  </Link>
-                ))}
+                  )
+                })}
               </div>
 
               {/* Desktop tablica */}
@@ -472,27 +506,64 @@ export function UploadPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {batches.map((b) => (
-                      <tr key={b.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-gray-800">{b.fileName}</td>
-                        <td className="px-4 py-3 text-gray-600">{b.importSummary?.institutionName || '–'}</td>
-                        <td className="px-4 py-3 text-gray-500">{b.uploadedAt.toLocaleDateString('hr-HR')}</td>
-                        <td className="px-4 py-3"><StatusBadge status={b.processingStatus} /></td>
-                        <td className="px-4 py-3 text-right">
-                          {b.errorCount > 0
-                            ? <span className="text-red-600 font-medium">{b.errorCount}</span>
-                            : <span className="text-gray-400">0</span>}
-                        </td>
-                        <td className="px-4 py-3 text-right text-gray-500">
-                          {b.importSummary?.financialEntriesCount ?? '–'}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <Link to={`/imports/${b.id}`} className="p-tx hover:underline text-xs font-medium">
-                            Detalji →
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
+                    {batches.map((b) => {
+                      const isConfirm  = confirmId  === b.id
+                      const isDeleting = deletingId === b.id
+                      return (
+                        <tr
+                          key={b.id}
+                          className={`transition-colors ${isConfirm ? 'bg-red-50' : 'hover:bg-gray-50'}`}
+                        >
+                          <td className="px-4 py-3 font-medium text-gray-800">{b.fileName}</td>
+                          <td className="px-4 py-3 text-gray-600">{b.importSummary?.institutionName || '–'}</td>
+                          <td className="px-4 py-3 text-gray-500">{b.uploadedAt.toLocaleDateString('hr-HR')}</td>
+                          <td className="px-4 py-3"><StatusBadge status={b.processingStatus} /></td>
+                          <td className="px-4 py-3 text-right">
+                            {b.errorCount > 0
+                              ? <span className="text-red-600 font-medium">{b.errorCount}</span>
+                              : <span className="text-gray-400">0</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right text-gray-500">
+                            {b.importSummary?.financialEntriesCount ?? '–'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-3">
+                              {isDeleting ? (
+                                <span className="animate-spin h-4 w-4 border-2 border-red-400 border-t-transparent rounded-full" />
+                              ) : isConfirm ? (
+                                <>
+                                  <button
+                                    onClick={() => handleDeleteBatch(b.id!)}
+                                    className="text-xs px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
+                                  >
+                                    Da, obriši
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmId(null)}
+                                    className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
+                                  >
+                                    Odustani
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <Link to={`/imports/${b.id}`} className="p-tx hover:underline text-xs font-medium">
+                                    Detalji →
+                                  </Link>
+                                  <button
+                                    onClick={() => setConfirmId(b.id!)}
+                                    className="text-gray-300 hover:text-red-500 transition-colors text-sm px-1"
+                                    title="Ukloni batch"
+                                  >
+                                    🗑
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

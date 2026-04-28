@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import {
   getBatch,
   getFinancialEntries,
   getImportIssues,
   getInstalledResources,
+  deleteBatch,
 } from '../services/firestoreService'
 import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
@@ -32,6 +33,7 @@ function formatEur(v: number | null): string {
 
 export function ImportDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [batch, setBatch] = useState<ImportBatch | null>(null)
   const [entries, setEntries] = useState<FinancialEntry[]>([])
   const [issues, setIssues] = useState<ImportIssue[]>([])
@@ -39,6 +41,7 @@ export function ImportDetailPage() {
   const [tab, setTab] = useState<Tab>('financije')
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
+  const [deleteStep, setDeleteStep] = useState<'idle' | 'confirm' | 'deleting'>('idle')
 
   useEffect(() => {
     if (!id) return
@@ -60,6 +63,17 @@ export function ImportDetailPage() {
     )
   }
   if (!batch) return <div className="text-red-600 text-sm p-4 bg-red-50 rounded-xl">Batch nije pronađen</div>
+
+  async function handleDelete() {
+    if (!id) return
+    setDeleteStep('deleting')
+    try {
+      await deleteBatch(id)
+      navigate('/upload?tab=batches', { replace: true })
+    } catch {
+      setDeleteStep('idle')
+    }
+  }
 
   const groups = [...new Set(entries.map((e) => e.categoryGroup))]
   const filteredEntries = filter === 'all' ? entries : entries.filter((e) => e.categoryGroup === filter)
@@ -87,7 +101,8 @@ export function ImportDetailPage() {
           </div>
           <StatusBadge status={batch.processingStatus} />
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs sm:text-sm">
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm">
           <span className={batch.errorCount > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}>
             {batch.errorCount} grešaka
           </span>
@@ -96,8 +111,43 @@ export function ImportDetailPage() {
           </span>
           <span className="text-gray-400">{entries.length} financijskih unosa</span>
           {batch.fileSize != null && (
-            <span className="text-gray-400 sm:ml-auto">{(batch.fileSize / 1024).toFixed(1)} KB</span>
+            <span className="text-gray-400">{(batch.fileSize / 1024).toFixed(1)} KB</span>
           )}
+
+          {/* ── Delete controls ── */}
+          <div className="sm:ml-auto flex items-center gap-2 mt-1 sm:mt-0">
+            {deleteStep === 'idle' && (
+              <button
+                onClick={() => setDeleteStep('confirm')}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+              >
+                🗑 Ukloni batch
+              </button>
+            )}
+            {deleteStep === 'confirm' && (
+              <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-1.5">
+                <span className="text-xs text-red-700 font-medium">Trajno obriši sve podatke?</span>
+                <button
+                  onClick={handleDelete}
+                  className="text-xs px-3 py-1 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
+                >
+                  Da, obriši
+                </button>
+                <button
+                  onClick={() => setDeleteStep('idle')}
+                  className="text-xs px-3 py-1 rounded-lg bg-white border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  Odustani
+                </button>
+              </div>
+            )}
+            {deleteStep === 'deleting' && (
+              <div className="flex items-center gap-2 text-xs text-red-500">
+                <span className="animate-spin h-3.5 w-3.5 border-2 border-red-400 border-t-transparent rounded-full" />
+                Brisanje…
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
