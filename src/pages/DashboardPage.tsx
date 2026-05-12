@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { getBatches, getAllFinancialEntries, getAllImportIssues } from '../services/firestoreService'
+import { getBatches, getAllFinancialEntries, getAllImportIssues, resolveIssue, addAuditLog } from '../services/firestoreService'
 import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
 import { StatCard } from '../components/StatCard'
 import { SeverityBadge } from '../components/StatusBadge'
 import { getAppSettings } from '../hooks/useAppSettings'
+import { currentUser } from '../services/authService'
+import { validateOib, formatOibError } from '../utils/oibValidator'
 
 const YEARS = [2024, 2025, 2026, 2027, 2028]
 
@@ -35,16 +37,67 @@ interface IssuesModalProps {
 type ResolutionFilter = 'all' | 'unresolved' | 'resolved'
 
 function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
-  const [issues,     setIssues]     = useState<ImportIssue[]>([])
-  const [loading,    setLoading]    = useState(true)
+  const [issues,      setIssues]      = useState<ImportIssue[]>([])
+  const [loading,     setLoading]     = useState(true)
   const [batchFilter, setBatchFilter] = useState<string>('all')
-  const [resFilter,  setResFilter]  = useState<ResolutionFilter>('all')
+  const [resFilter,   setResFilter]   = useState<ResolutionFilter>('all')
+  const [expandedId,  setExpandedId]  = useState<string | null>(null)
+  const [editValue,   setEditValue]   = useState('')
+  const [editNote,    setEditNote]    = useState('')
+  const [editError,   setEditError]   = useState('')
+  const [saving,      setSaving]      = useState(false)
 
   useEffect(() => {
     getAllImportIssues(mode)
       .then(setIssues)
       .finally(() => setLoading(false))
   }, [mode])
+
+  function openEditor(iss: ImportIssue) {
+    setExpandedId(iss.id!)
+    setEditValue(iss.correctedValue ?? iss.originalValue ?? '')
+    setEditNote('')
+    setEditError('')
+  }
+
+  function closeEditor() {
+    setExpandedId(null)
+    setEditValue('')
+    setEditNote('')
+    setEditError('')
+  }
+
+  async function handleSave(iss: ImportIssue) {
+    const isOib = iss.fieldName === 'oib'
+    if (isOib) {
+      const err = formatOibError(editValue)
+      if (err) { setEditError(err); return }
+    } else if (!editValue.trim()) {
+      setEditError('Vrijednost ne može biti prazna')
+      return
+    }
+    setSaving(true)
+    try {
+      const user = currentUser()
+      if (!user || !iss.id) return
+      await resolveIssue(iss.id, user.uid, 'MANUAL_EDIT', editValue.trim(), editNote.trim() || undefined)
+      await addAuditLog({
+        userId: user.uid,
+        action: 'manual_correction',
+        entityType: 'importIssue',
+        entityId: iss.id,
+        timestamp: new Date(),
+        details: { field: iss.fieldName, correctedValue: editValue.trim() },
+      })
+      setIssues(prev => prev.map(i => i.id === iss.id
+        ? { ...i, resolvedAt: new Date(), resolvedBy: user.uid, resolvedMethod: 'MANUAL_EDIT', correctedValue: editValue.trim(), resolutionNote: editNote.trim() || undefined }
+        : i
+      ))
+      closeEditor()
+    } finally {
+      setSaving(false)
+    }
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -166,41 +219,120 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
             <div className="space-y-2">
               {filtered.map((iss) => {
                 const b = batchMap.get(iss.batchId)
+                const isExpanded = expandedId === iss.id
+                const isOib = iss.fieldName === 'oib'
+                const oibValid = isOib ? validateOib(editValue) : true
+                const canEdit = !iss.resolvedAt
+
                 return (
                   <div
                     key={iss.id}
-                    className={`flex items-start gap-3 rounded-xl px-4 py-3 ${iss.resolvedAt ? 'bg-green-50' : 'bg-gray-50'}`}
+                    className={`rounded-xl overflow-hidden ${iss.resolvedAt ? 'bg-green-50' : isExpanded ? 'bg-blue-50 ring-1 ring-blue-200' : 'bg-gray-50'}`}
                   >
-                    <div className="mt-0.5 shrink-0">
-                      <SeverityBadge severity={iss.severity} />
-                    </div>
-                    <div className="flex-1 min-w-0 text-sm">
-                      <p className={iss.resolvedAt ? 'text-gray-400 line-through' : 'text-gray-800'}>
-                        {iss.message}
-                      </p>
-                      <p className="text-gray-400 text-xs mt-0.5 truncate">
-                        {iss.sheetName} · {iss.rowLabel} · {iss.fieldName}
-                        {iss.originalValue ? ` · "${iss.originalValue}"` : ''}
-                      </p>
-                      {iss.resolvedAt && (
-                        <p className="text-xs text-green-600 mt-0.5">
-                          ✓ Riješeno · {iss.resolvedMethod}
-                          {iss.correctedValue ? ` → "${iss.correctedValue}"` : ''}
+                    {/* Issue row */}
+                    <div className="flex items-start gap-3 px-4 py-3">
+                      <div className="mt-0.5 shrink-0">
+                        <SeverityBadge severity={iss.severity} />
+                      </div>
+                      <div className="flex-1 min-w-0 text-sm">
+                        <p className={iss.resolvedAt ? 'text-gray-400 line-through' : 'text-gray-800'}>
+                          {iss.message}
                         </p>
-                      )}
-                      {b && (
-                        <Link
-                          to={`/imports/${b.id}`}
-                          onClick={onClose}
-                          className="text-xs p-tx hover:underline mt-1 inline-block"
+                        <p className="text-gray-400 text-xs mt-0.5 truncate">
+                          {iss.sheetName} · {iss.rowLabel} · {iss.fieldName}
+                          {iss.originalValue ? ` · "${iss.originalValue}"` : ''}
+                        </p>
+                        {iss.resolvedAt && (
+                          <p className="text-xs text-green-600 mt-0.5">
+                            ✓ Riješeno · {iss.resolvedMethod}
+                            {iss.correctedValue ? ` → "${iss.correctedValue}"` : ''}
+                          </p>
+                        )}
+                        {b && (
+                          <Link
+                            to={`/imports/${b.id}`}
+                            onClick={onClose}
+                            className="text-xs p-tx hover:underline mt-1 inline-block"
+                          >
+                            {b.importSummary?.institutionName ? `${b.importSummary.institutionName} — ` : ''}
+                            {b.fileName} →
+                          </Link>
+                        )}
+                      </div>
+                      {canEdit && (
+                        <button
+                          onClick={() => isExpanded ? closeEditor() : openEditor(iss)}
+                          className={`shrink-0 text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                            isExpanded
+                              ? 'bg-white border-blue-300 text-blue-600'
+                              : 'bg-white border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600'
+                          }`}
                         >
-                          {b.importSummary?.institutionName
-                            ? `${b.importSummary.institutionName} — `
-                            : ''}
-                          {b.fileName} →
-                        </Link>
+                          {isExpanded ? 'Odustani' : 'Ispravi'}
+                        </button>
                       )}
                     </div>
+
+                    {/* Inline editor */}
+                    {isExpanded && (
+                      <div className="px-4 pb-4 space-y-3 border-t border-blue-100">
+                        <div className="pt-3">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Ispravljena vrijednost
+                            {iss.originalValue && (
+                              <span className="ml-1 font-normal text-gray-400">
+                                (originalno: "{iss.originalValue}")
+                              </span>
+                            )}
+                          </label>
+                          <input
+                            type="text"
+                            value={editValue}
+                            onChange={e => { setEditValue(e.target.value); setEditError('') }}
+                            maxLength={isOib ? 11 : undefined}
+                            placeholder={isOib ? '11 znamenki' : 'Ispravna vrijednost…'}
+                            autoFocus
+                            className={`w-full text-sm border rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 ${
+                              editError ? 'border-red-400'
+                              : isOib && editValue.length === 11
+                                ? oibValid ? 'border-green-400' : 'border-red-400'
+                                : 'border-gray-200'
+                            }`}
+                          />
+                          {editError && <p className="text-xs text-red-600 mt-1">{editError}</p>}
+                          {isOib && editValue.length === 11 && !editError && oibValid && (
+                            <p className="text-xs text-green-600 mt-1">✓ OIB je validan</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Napomena <span className="font-normal text-gray-400">(opcionalno)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={editNote}
+                            onChange={e => setEditNote(e.target.value)}
+                            placeholder="Razlog ispravka…"
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={closeEditor}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                          >
+                            Odustani
+                          </button>
+                          <button
+                            onClick={() => handleSave(iss)}
+                            disabled={saving}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                          >
+                            {saving ? 'Sprema…' : 'Spremi ispravak'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               })}
