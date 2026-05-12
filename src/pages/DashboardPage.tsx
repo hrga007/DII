@@ -53,9 +53,10 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
   }, [onClose])
 
   const batchMap = new Map(batches.map(b => [b.id!, b]))
-  const batchIds = [...new Set(issues.map(i => i.batchId))]
+  const activeIssues = issues.filter(i => batchMap.has(i.batchId))
+  const batchIds = [...new Set(activeIssues.map(i => i.batchId))]
 
-  const afterBatch = batchFilter === 'all' ? issues : issues.filter(i => i.batchId === batchFilter)
+  const afterBatch = batchFilter === 'all' ? activeIssues : activeIssues.filter(i => i.batchId === batchFilter)
   const filtered = resFilter === 'all'
     ? afterBatch
     : resFilter === 'resolved'
@@ -86,7 +87,7 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
             </h2>
             {!loading && (
               <p className="text-xs text-gray-400 mt-0.5">
-                {issues.length} {mode === 'error' ? 'grešaka' : 'upozorenja'} u{' '}
+                {activeIssues.length} {mode === 'error' ? 'grešaka' : 'upozorenja'} u{' '}
                 {batchIds.length} batch-eva
               </p>
             )}
@@ -243,11 +244,15 @@ export function DashboardPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const totalErrors   = batches.reduce((s, b) => s + b.errorCount, 0)
-  const totalWarnings = batches.reduce((s, b) => s + b.warningCount, 0)
-  const institutions  = new Set(batches.map(b => b.institutionId).filter(Boolean)).size
+  const activeBatches = batches.filter(b => b.isActive)
+  const activeIds     = new Set(activeBatches.map(b => b.id!))
 
-  const filtered = yearFilter === 'all' ? entries : entries.filter(e => e.year === yearFilter)
+  const totalErrors   = activeBatches.reduce((s, b) => s + b.errorCount, 0)
+  const totalWarnings = activeBatches.reduce((s, b) => s + b.warningCount, 0)
+  const institutions  = new Set(activeBatches.map(b => b.institutionId).filter(Boolean)).size
+
+  const activeEntries = entries.filter(e => activeIds.has(e.batchId))
+  const filtered = yearFilter === 'all' ? activeEntries : activeEntries.filter(e => e.year === yearFilter)
 
   // ── Top N categories by name ──────────────────────────────────
   const topN = appSettings.topCategoriesCount
@@ -264,7 +269,7 @@ export function DashboardPage() {
   // ── Yearly totals (all entries, ignoring year filter) ────────
   const totalByYear = YEARS.map(y => ({
     year: y,
-    sum: entries.filter(e => e.year === y).reduce((s, e) => s + (e.normalizedValue ?? 0), 0),
+    sum: activeEntries.filter(e => e.year === y).reduce((s, e) => s + (e.normalizedValue ?? 0), 0),
   }))
   const maxYear = Math.max(...totalByYear.map(x => x.sum), 1)
 
@@ -282,7 +287,7 @@ export function DashboardPage() {
 
       {/* Stat kartice */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Batch-evi"   value={batches.length} color="blue" />
+        <StatCard label="Batch-evi"   value={activeBatches.length} color="blue" />
         <StatCard label="Institucije" value={institutions}   color="green" />
         <StatCard
           label="Greške"
@@ -300,7 +305,7 @@ export function DashboardPage() {
 
       {/* Issues modal */}
       {modal && (
-        <IssuesModal mode={modal} batches={batches} onClose={closeModal} />
+        <IssuesModal mode={modal} batches={activeBatches} onClose={closeModal} />
       )}
 
       {entries.length === 0 ? (
