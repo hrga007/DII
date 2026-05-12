@@ -18,6 +18,12 @@ export interface FinancialEntry {
   createdAt: Date
 }
 
+export type IssueResolutionMethod =
+  | 'MANUAL_EDIT'
+  | 'REUPLOAD'
+  | 'BULK_NORMALIZE'
+  | 'LINKED_INSTITUTION'
+
 export interface ImportIssue {
   id?: string
   batchId: string
@@ -28,4 +34,9 @@ export interface ImportIssue {
   message: string
   originalValue: string
   createdAt: Date
+  resolvedAt?: Date
+  resolvedBy?: string
+  resolvedMethod?: IssueResolutionMethod
+  resolutionNote?: string
+  correctedValue?: string
 }

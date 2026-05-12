@@ -1,4 +1,11 @@
-export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
+export type ProcessingStatus =
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'completed_with_warnings'
+  | 'completed_with_errors'
+  | 'failed'
+  | 'superseded'
 
 export interface ImportSummary {
   sheetsProcessed: string[]
@@ -21,4 +28,6 @@ export interface ImportBatch {
   institutionId: string
   templateVersion: string
   importSummary: ImportSummary
+  isActive: boolean
+  supersedesId?: string
 }

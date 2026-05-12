@@ -16,7 +16,7 @@ import {
 import { getFirebaseDb } from '../config/firebase'
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
-import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
+import type { FinancialEntry, ImportIssue, IssueResolutionMethod } from '../models/financialEntry'
 import type { InstalledResource } from '../models/installedResource'
 import type { AuditLog } from '../models/auditLog'
 
@@ -131,6 +131,163 @@ export async function batchExistsByHash(fileHash: string): Promise<string | null
   )
   const snap = await getDocs(q)
   return snap.empty ? null : snap.docs[0].id
+}
+
+export async function getBatchesByInstitution(institutionId: string): Promise<ImportBatch[]> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(
+    query(
+      collection(db, 'importBatches'),
+      where('institutionId', '==', institutionId),
+      orderBy('uploadedAt', 'desc')
+    )
+  )
+  return snap.docs.map((d) => {
+    const data = d.data()
+    return { ...data, id: d.id, uploadedAt: fromTimestamp(data.uploadedAt) } as ImportBatch
+  })
+}
+
+// Deaktivira sve batcheve institucije i postavlja novi kao aktivan.
+// Pozivati kod svakog novog uvoza za istu instituciju.
+export async function activateBatch(batchId: string, institutionId: string): Promise<void> {
+  const db = getFirebaseDb()
+  const existing = await getDocs(
+    query(
+      collection(db, 'importBatches'),
+      where('institutionId', '==', institutionId),
+      where('isActive', '==', true)
+    )
+  )
+  const wb = writeBatch(db)
+  existing.docs.forEach((d) => {
+    if (d.id !== batchId) wb.update(d.ref, { isActive: false })
+  })
+  wb.update(doc(db, 'importBatches', batchId), { isActive: true })
+  await wb.commit()
+}
+
+// Označava batch kao SUPERSEDED i aktivira zamjenski batch.
+export async function supersedeBatch(
+  oldBatchId: string,
+  newBatchId: string,
+  institutionId: string
+): Promise<void> {
+  const db = getFirebaseDb()
+  const wb = writeBatch(db)
+  wb.update(doc(db, 'importBatches', oldBatchId), {
+    isActive: false,
+    processingStatus: 'superseded',
+  })
+  wb.update(doc(db, 'importBatches', newBatchId), {
+    isActive: true,
+    supersedesId: oldBatchId,
+  })
+  await wb.commit()
+  // Deaktiviraj sve ostale aktivne batcheve iste institucije
+  const others = await getDocs(
+    query(
+      collection(db, 'importBatches'),
+      where('institutionId', '==', institutionId),
+      where('isActive', '==', true)
+    )
+  )
+  if (!others.empty) {
+    const wb2 = writeBatch(db)
+    others.docs.forEach((d) => {
+      if (d.id !== newBatchId) wb2.update(d.ref, { isActive: false })
+    })
+    await wb2.commit()
+  }
+}
+
+// Označava grešku/upozorenje kao riješeno s audit trakom.
+export async function resolveIssue(
+  issueId: string,
+  resolvedBy: string,
+  resolvedMethod: IssueResolutionMethod,
+  correctedValue?: string,
+  resolutionNote?: string
+): Promise<void> {
+  const db = getFirebaseDb()
+  await setDoc(
+    doc(db, 'importIssues', issueId),
+    {
+      resolvedAt: toTimestamp(new Date()),
+      resolvedBy,
+      resolvedMethod,
+      ...(correctedValue !== undefined ? { correctedValue } : {}),
+      ...(resolutionNote ? { resolutionNote } : {}),
+    },
+    { merge: true }
+  )
+}
+
+// Označava sve NP varijante u batchu kao riješene i normalizira vrijednosti.
+export async function normalizeIssues(
+  batchIds: string[],
+  resolvedBy: string
+): Promise<number> {
+  const db = getFirebaseDb()
+  const NP_VARIANTS = ['------', 'N/A', 'n.a.', 'n/p', 'N/P', 'n.a', 'N.A.', 'N.A', 'n/a']
+  let total = 0
+  for (const batchId of batchIds) {
+    const issuesSnap = await getDocs(
+      query(
+        collection(db, 'importIssues'),
+        where('batchId', '==', batchId),
+        where('severity', '==', 'warning')
+      )
+    )
+    const toResolve = issuesSnap.docs.filter((d) =>
+      NP_VARIANTS.includes(d.data().originalValue)
+    )
+    const CHUNK = 400
+    for (let i = 0; i < toResolve.length; i += CHUNK) {
+      const wb = writeBatch(db)
+      toResolve.slice(i, i + CHUNK).forEach((d) => {
+        wb.update(d.ref, {
+          resolvedAt: toTimestamp(new Date()),
+          resolvedBy,
+          resolvedMethod: 'BULK_NORMALIZE' as IssueResolutionMethod,
+          correctedValue: 'NP',
+        })
+      })
+      await wb.commit()
+    }
+    total += toResolve.length
+  }
+  return total
+}
+
+// Povezuje batch bez institucije s postojećom ili novom institucijom.
+export async function linkBatchToInstitution(
+  batchId: string,
+  institutionId: string,
+  resolvedBy: string
+): Promise<void> {
+  const db = getFirebaseDb()
+  await setDoc(doc(db, 'importBatches', batchId), { institutionId }, { merge: true })
+
+  // Označi sve greške tipa "Opći podaci" kao riješene
+  const issuesSnap = await getDocs(
+    query(collection(db, 'importIssues'), where('batchId', '==', batchId))
+  )
+  const toResolve = issuesSnap.docs.filter((d) =>
+    d.data().message?.includes('Opći podaci') || d.data().fieldName === 'institutionId'
+  )
+  if (toResolve.length > 0) {
+    const wb = writeBatch(db)
+    toResolve.forEach((d) => {
+      wb.update(d.ref, {
+        resolvedAt: toTimestamp(new Date()),
+        resolvedBy,
+        resolvedMethod: 'LINKED_INSTITUTION' as IssueResolutionMethod,
+        correctedValue: institutionId,
+      })
+    })
+    await wb.commit()
+  }
 }
 
 // ─── Financial Entries (bulk write) ─────────────────────────────
