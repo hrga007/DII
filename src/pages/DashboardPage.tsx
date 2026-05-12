@@ -32,10 +32,13 @@ interface IssuesModalProps {
   onClose: () => void
 }
 
+type ResolutionFilter = 'all' | 'unresolved' | 'resolved'
+
 function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
-  const [issues,  setIssues]  = useState<ImportIssue[]>([])
-  const [loading, setLoading] = useState(true)
-  const [filter,  setFilter]  = useState<string>('all')
+  const [issues,     setIssues]     = useState<ImportIssue[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [batchFilter, setBatchFilter] = useState<string>('all')
+  const [resFilter,  setResFilter]  = useState<ResolutionFilter>('all')
 
   useEffect(() => {
     getAllImportIssues(mode)
@@ -43,7 +46,6 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
       .finally(() => setLoading(false))
   }, [mode])
 
-  // Close on Escape
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -51,10 +53,17 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
   }, [onClose])
 
   const batchMap = new Map(batches.map(b => [b.id!, b]))
-
-  // Unique batch IDs that appear in filtered issues
   const batchIds = [...new Set(issues.map(i => i.batchId))]
-  const filtered = filter === 'all' ? issues : issues.filter(i => i.batchId === filter)
+
+  const afterBatch = batchFilter === 'all' ? issues : issues.filter(i => i.batchId === batchFilter)
+  const filtered = resFilter === 'all'
+    ? afterBatch
+    : resFilter === 'resolved'
+      ? afterBatch.filter(i => !!i.resolvedAt)
+      : afterBatch.filter(i => !i.resolvedAt)
+
+  const resolvedCount   = afterBatch.filter(i => !!i.resolvedAt).length
+  const unresolvedCount = afterBatch.filter(i => !i.resolvedAt).length
 
   const title  = mode === 'error' ? 'Greške' : 'Upozorenja'
   const accent = mode === 'error' ? 'text-red-600' : 'text-yellow-600'
@@ -90,16 +99,37 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
           </button>
         </div>
 
+        {/* Filter: Sve / Neriješene / Riješene */}
+        {!loading && (
+          <div className="flex gap-1.5 px-5 py-2.5 border-b border-gray-100 shrink-0">
+            {([
+              { key: 'all',        label: `Sve (${afterBatch.length})` },
+              { key: 'unresolved', label: `Neriješene (${unresolvedCount})` },
+              { key: 'resolved',   label: `Riješene (${resolvedCount})` },
+            ] as { key: ResolutionFilter; label: string }[]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setResFilter(key)}
+                className={`shrink-0 text-xs px-3 py-1.5 rounded-full transition-colors ${
+                  resFilter === key ? 'act-bg act-tx' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Batch filter */}
         {!loading && batchIds.length > 1 && (
           <div className="flex gap-1.5 px-5 py-3 border-b border-gray-100 overflow-x-auto shrink-0">
             <button
-              onClick={() => setFilter('all')}
+              onClick={() => setBatchFilter('all')}
               className={`shrink-0 text-xs px-3 py-1.5 rounded-full transition-colors ${
-                filter === 'all' ? 'act-bg act-tx' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                batchFilter === 'all' ? 'act-bg act-tx' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              Sve ({issues.length})
+              Svi batch-evi ({issues.length})
             </button>
             {batchIds.map(bid => {
               const b = batchMap.get(bid)
@@ -107,9 +137,9 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
               return (
                 <button
                   key={bid}
-                  onClick={() => setFilter(bid)}
+                  onClick={() => setBatchFilter(bid)}
                   className={`shrink-0 text-xs px-3 py-1.5 rounded-full transition-colors max-w-[160px] truncate ${
-                    filter === bid ? 'act-bg act-tx' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    batchFilter === bid ? 'act-bg act-tx' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                   title={b?.fileName}
                 >
@@ -138,17 +168,25 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
                 return (
                   <div
                     key={iss.id}
-                    className="flex items-start gap-3 bg-gray-50 rounded-xl px-4 py-3"
+                    className={`flex items-start gap-3 rounded-xl px-4 py-3 ${iss.resolvedAt ? 'bg-green-50' : 'bg-gray-50'}`}
                   >
                     <div className="mt-0.5 shrink-0">
                       <SeverityBadge severity={iss.severity} />
                     </div>
                     <div className="flex-1 min-w-0 text-sm">
-                      <p className="text-gray-800">{iss.message}</p>
+                      <p className={iss.resolvedAt ? 'text-gray-400 line-through' : 'text-gray-800'}>
+                        {iss.message}
+                      </p>
                       <p className="text-gray-400 text-xs mt-0.5 truncate">
                         {iss.sheetName} · {iss.rowLabel} · {iss.fieldName}
                         {iss.originalValue ? ` · "${iss.originalValue}"` : ''}
                       </p>
+                      {iss.resolvedAt && (
+                        <p className="text-xs text-green-600 mt-0.5">
+                          ✓ Riješeno · {iss.resolvedMethod}
+                          {iss.correctedValue ? ` → "${iss.correctedValue}"` : ''}
+                        </p>
+                      )}
                       {b && (
                         <Link
                           to={`/imports/${b.id}`}
