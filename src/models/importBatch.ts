@@ -28,6 +28,6 @@ export interface ImportBatch {
   institutionId: string
   templateVersion: string
   importSummary: ImportSummary
-  isActive?: boolean
+  isActive: boolean
   supersedesId?: string
 }

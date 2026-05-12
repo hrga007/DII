@@ -136,6 +136,7 @@ export async function runImport(
     storagePath: null,
     institutionId: '',
     templateVersion: '1.0',
+    isActive: false,
     importSummary: {
       sheetsProcessed: [],
       financialEntriesCount: 0,
