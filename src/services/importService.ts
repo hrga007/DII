@@ -10,6 +10,8 @@ import {
   saveImportIssues,
   saveInstalledResources,
   addAuditLog,
+  getBatchesByInstitution,
+  supersedeBatch,
 } from './firestoreService'
 import { currentUser } from './authService'
 import type { ImportBatch } from '../models/importBatch'
@@ -202,11 +204,35 @@ export async function runImport(
     const errorCount = allIssues.filter((i) => i.severity === 'error').length
     const warningCount = allIssues.filter((i) => i.severity === 'warning').length
 
+    let processingStatus: ImportBatch['processingStatus'] = 'completed'
+    if (errorCount > 0) processingStatus = 'completed_with_errors'
+    else if (warningCount > 0) processingStatus = 'completed_with_warnings'
+
+    // Auto-supersede: ako institucija već ima aktivan batch, postavi stari kao superseded
+    let supersededId: string | undefined
+    if (institutionId) {
+      const existing = await getBatchesByInstitution(institutionId)
+      const activeBatch = existing.find((b) => b.isActive && b.id !== batchId)
+      if (activeBatch?.id) {
+        supersededId = activeBatch.id
+        await supersedeBatch(activeBatch.id, batchId, institutionId)
+        await addAuditLog({
+          userId: user.uid,
+          action: 'supersede_batch',
+          entityType: 'importBatch',
+          entityId: activeBatch.id,
+          timestamp: new Date(),
+          details: { newBatchId: batchId, institutionId },
+        })
+      }
+    }
+
     await updateBatch(batchId, {
-      processingStatus: 'completed',
+      processingStatus,
       errorCount,
       warningCount,
       institutionId,
+      isActive: !supersededId ? true : undefined, // supersedeBatch već postavlja isActive
       importSummary: {
         sheetsProcessed: financialSheetMap.map((s) => s.name),
         financialEntriesCount: allFinancialEntries.length,

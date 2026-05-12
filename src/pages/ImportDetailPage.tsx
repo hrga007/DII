@@ -6,11 +6,14 @@ import {
   getImportIssues,
   getInstalledResources,
   deleteBatch,
+  activateBatch,
+  addAuditLog,
 } from '../services/firestoreService'
+import { currentUser } from '../services/authService'
 import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
 import type { InstalledResource } from '../models/installedResource'
-import { StatusBadge, SeverityBadge } from '../components/StatusBadge'
+import { StatusBadge, ActiveBadge, SeverityBadge } from '../components/StatusBadge'
 import { exportToExcel, exportToCsv } from '../utils/exportUtils'
 import { getAppSettings } from '../hooks/useAppSettings'
 
@@ -42,6 +45,7 @@ export function ImportDetailPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
   const [deleteStep, setDeleteStep] = useState<'idle' | 'confirm' | 'deleting'>('idle')
+  const [activating, setActivating] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -75,6 +79,29 @@ export function ImportDetailPage() {
     }
   }
 
+  async function handleActivate() {
+    if (!id || !batch?.institutionId) return
+    setActivating(true)
+    try {
+      await activateBatch(id, batch.institutionId)
+      const user = currentUser()
+      if (user) {
+        await addAuditLog({
+          userId: user.uid,
+          action: 'set_active_batch',
+          entityType: 'importBatch',
+          entityId: id,
+          timestamp: new Date(),
+          details: { institutionId: batch.institutionId },
+        })
+      }
+      const updated = await getBatch(id)
+      if (updated) setBatch(updated)
+    } finally {
+      setActivating(false)
+    }
+  }
+
   const groups = [...new Set(entries.map((e) => e.categoryGroup))]
   const filteredEntries = filter === 'all' ? entries : entries.filter((e) => e.categoryGroup === filter)
 
@@ -99,7 +126,10 @@ export function ImportDetailPage() {
               {batch.importSummary?.institutionName || '–'} · {batch.uploadedAt.toLocaleDateString('hr-HR')}
             </p>
           </div>
-          <StatusBadge status={batch.processingStatus} />
+          <div className="flex items-center gap-1.5 shrink-0">
+            <ActiveBadge isActive={batch.isActive} />
+            <StatusBadge status={batch.processingStatus} />
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm">
@@ -114,8 +144,19 @@ export function ImportDetailPage() {
             <span className="text-gray-400">{(batch.fileSize / 1024).toFixed(1)} KB</span>
           )}
 
-          {/* ── Delete controls ── */}
+          {/* ── Actions ── */}
           <div className="sm:ml-auto flex items-center gap-2 mt-1 sm:mt-0">
+            {!batch.isActive && batch.institutionId && deleteStep === 'idle' && (
+              <button
+                onClick={handleActivate}
+                disabled={activating}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+              >
+                {activating ? (
+                  <><span className="animate-spin h-3 w-3 border-2 border-emerald-500 border-t-transparent rounded-full" /> Aktiviranje…</>
+                ) : 'Postavi kao aktivan'}
+              </button>
+            )}
             {deleteStep === 'idle' && (
               <button
                 onClick={() => setDeleteStep('confirm')}
