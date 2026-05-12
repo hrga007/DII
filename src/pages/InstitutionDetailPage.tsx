@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
   getInstitutions,
   getBatchesByInstitution,
+  getFinancialEntries,
   getFinancialEntriesByInstitution,
   getInstalledResourcesByInstitution,
   getImportIssuesByInstitution,
@@ -212,6 +213,267 @@ function FinancialPivot({ entries }: { entries: FinancialEntry[] }) {
   )
 }
 
+// ─── Batch diff ──────────────────────────────────────────────────
+interface BatchDiffModalProps {
+  batches: ImportBatch[]
+  onClose: () => void
+}
+
+function BatchDiffModal({ batches, onClose }: BatchDiffModalProps) {
+  const [batchAId, setBatchAId] = useState(batches[1]?.id ?? batches[0]?.id ?? '')
+  const [batchBId, setBatchBId] = useState(batches[0]?.id ?? '')
+  const [entriesA, setEntriesA] = useState<FinancialEntry[]>([])
+  const [entriesB, setEntriesB] = useState<FinancialEntry[]>([])
+  const [loading, setLoading] = useState(false)
+  const [showAll, setShowAll] = useState(false)
+
+  useEffect(() => {
+    if (!batchAId || !batchBId || batchAId === batchBId) return
+    setLoading(true)
+    Promise.all([getFinancialEntries(batchAId), getFinancialEntries(batchBId)])
+      .then(([a, b]) => { setEntriesA(a); setEntriesB(b) })
+      .finally(() => setLoading(false))
+  }, [batchAId, batchBId])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const batchName = (id: string) => {
+    const b = batches.find(x => x.id === id)
+    return b ? `${b.fileName.replace(/\.[^.]+$/, '')} (${b.uploadedAt.toLocaleDateString('hr-HR')})` : id
+  }
+
+  // Agregat po categoryGroup × year za oba batcha
+  const diffData = useMemo(() => {
+    const getValue = (entries: FinancialEntry[], cat: CategoryGroup, year: number) =>
+      entries
+        .filter(e => e.categoryGroup === cat && e.year === year)
+        .reduce((s, e) => s + (e.amount ?? 0), 0)
+
+    return CATEGORIES.map(cat => {
+      const years = YEARS.map(year => {
+        const a = getValue(entriesA, cat, year)
+        const b = getValue(entriesB, cat, year)
+        return { year, a, b, delta: b - a }
+      })
+      const totalA = years.reduce((s, y) => s + y.a, 0)
+      const totalB = years.reduce((s, y) => s + y.b, 0)
+      return { cat, years, totalA, totalB, totalDelta: totalB - totalA }
+    })
+  }, [entriesA, entriesB])
+
+  const hasAnyData = diffData.some(r => r.totalA > 0 || r.totalB > 0)
+  const changedRows = diffData.filter(r => r.totalDelta !== 0)
+  const visibleRows = showAll ? diffData.filter(r => r.totalA > 0 || r.totalB > 0) : changedRows
+
+  const fmt = (v: number) =>
+    v === 0 ? '—' : v.toLocaleString('hr-HR', { maximumFractionDigits: 0 })
+
+  const fmtDelta = (v: number) => {
+    if (v === 0) return { text: '—', cls: 'text-gray-400' }
+    const sign = v > 0 ? '+' : ''
+    const abs = Math.abs(v)
+    const txt = abs >= 1_000_000
+      ? `${sign}${(v / 1_000_000).toFixed(1)}M`
+      : abs >= 1_000
+      ? `${sign}${(v / 1_000).toFixed(0)}k`
+      : `${sign}${v.toLocaleString('hr-HR', { maximumFractionDigits: 0 })}`
+    return { text: txt, cls: v > 0 ? 'text-green-700 font-semibold' : 'text-red-600 font-semibold' }
+  }
+
+  const sameId = batchAId === batchBId
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col"
+        style={{ maxHeight: 'min(92vh, 760px)' }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+          <h2 className="text-base font-bold text-gray-800">⇄ Usporedba batcheva</h2>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors text-lg"
+          >×</button>
+        </div>
+
+        {/* Batch selectors */}
+        <div className="grid grid-cols-2 gap-4 px-5 py-4 border-b border-gray-100 shrink-0">
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1.5 block">Stariji batch (A)</label>
+            <select
+              value={batchAId}
+              onChange={e => setBatchAId(e.target.value)}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {batches.map(b => (
+                <option key={b.id} value={b.id}>{batchName(b.id!)}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1.5 block">Noviji batch (B)</label>
+            <select
+              value={batchBId}
+              onChange={e => setBatchBId(e.target.value)}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {batches.map(b => (
+                <option key={b.id} value={b.id}>{batchName(b.id!)}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-auto px-5 py-4">
+          {sameId ? (
+            <p className="text-center text-gray-400 py-12 text-sm">Odaberi dva različita batcha za usporedbu</p>
+          ) : loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin h-7 w-7 border-4 border-blue-500 border-t-transparent rounded-full" />
+            </div>
+          ) : !hasAnyData ? (
+            <p className="text-center text-gray-400 py-12 text-sm">Nema financijskih podataka za usporedbu</p>
+          ) : (
+            <>
+              {/* Summary chips */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {changedRows.length === 0 ? (
+                  <span className="text-xs px-3 py-1.5 rounded-full bg-gray-100 text-gray-600">
+                    ✓ Nema razlika u financijskim podacima
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-xs px-3 py-1.5 rounded-full bg-blue-50 text-blue-700">
+                      {changedRows.length} kategorij{changedRows.length === 1 ? 'a' : 'e'} s promjenama
+                    </span>
+                    {changedRows.filter(r => r.totalDelta > 0).length > 0 && (
+                      <span className="text-xs px-3 py-1.5 rounded-full bg-green-50 text-green-700">
+                        ↑ {changedRows.filter(r => r.totalDelta > 0).length} povećano
+                      </span>
+                    )}
+                    {changedRows.filter(r => r.totalDelta < 0).length > 0 && (
+                      <span className="text-xs px-3 py-1.5 rounded-full bg-red-50 text-red-600">
+                        ↓ {changedRows.filter(r => r.totalDelta < 0).length} smanjeno
+                      </span>
+                    )}
+                  </>
+                )}
+                <button
+                  onClick={() => setShowAll(v => !v)}
+                  className="text-xs px-3 py-1.5 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors ml-auto"
+                >
+                  {showAll ? 'Prikaži samo promjene' : 'Prikaži sve kategorije'}
+                </button>
+              </div>
+
+              {/* Diff table */}
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="text-left px-3 py-2.5 font-semibold text-gray-600 whitespace-nowrap">Kategorija</th>
+                      {YEARS.map(y => (
+                        <th key={y} colSpan={3} className="text-center px-2 py-2.5 font-semibold text-gray-600 border-l border-gray-200">
+                          {y}
+                          <div className="flex justify-center gap-3 text-xs font-normal mt-0.5 text-gray-400">
+                            <span>A</span><span>B</span><span>Δ</span>
+                          </div>
+                        </th>
+                      ))}
+                      <th className="text-center px-3 py-2.5 font-semibold text-gray-600 border-l border-gray-200 whitespace-nowrap">
+                        Ukupno Δ
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {visibleRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={YEARS.length * 3 + 2} className="px-3 py-8 text-center text-gray-400">
+                          Nema kategorija s promjenama
+                        </td>
+                      </tr>
+                    ) : visibleRows.map(row => {
+                      const totalDelta = fmtDelta(row.totalDelta)
+                      const rowChanged = row.totalDelta !== 0
+                      return (
+                        <tr key={row.cat} className={rowChanged ? 'bg-amber-50/40' : 'hover:bg-gray-50'}>
+                          <td className="px-3 py-2.5 font-medium text-gray-700 whitespace-nowrap">
+                            {CAT_LABELS[row.cat]}
+                          </td>
+                          {row.years.map(({ year, a, b, delta }) => {
+                            const d = fmtDelta(delta)
+                            return (
+                              <>
+                                <td key={`${year}-a`} className="px-2 py-2.5 text-right text-gray-500 border-l border-gray-100 whitespace-nowrap">
+                                  {fmt(a)}
+                                </td>
+                                <td key={`${year}-b`} className="px-2 py-2.5 text-right text-gray-700 whitespace-nowrap">
+                                  {fmt(b)}
+                                </td>
+                                <td key={`${year}-d`} className={`px-2 py-2.5 text-right whitespace-nowrap ${d.cls}`}>
+                                  {d.text}
+                                </td>
+                              </>
+                            )
+                          })}
+                          <td className={`px-3 py-2.5 text-right border-l border-gray-200 whitespace-nowrap ${totalDelta.cls}`}>
+                            {totalDelta.text}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {/* Ukupno row */}
+                    {visibleRows.length > 0 && (
+                      <tr className="bg-gray-50 font-semibold border-t-2 border-gray-200">
+                        <td className="px-3 py-2.5 text-gray-700">Ukupno</td>
+                        {YEARS.map(y => {
+                          const totA = diffData.reduce((s, r) => s + (r.years.find(yr => yr.year === y)?.a ?? 0), 0)
+                          const totB = diffData.reduce((s, r) => s + (r.years.find(yr => yr.year === y)?.b ?? 0), 0)
+                          const d = fmtDelta(totB - totA)
+                          return (
+                            <>
+                              <td key={`tot-${y}-a`} className="px-2 py-2.5 text-right text-gray-500 border-l border-gray-100">{fmt(totA)}</td>
+                              <td key={`tot-${y}-b`} className="px-2 py-2.5 text-right text-gray-800">{fmt(totB)}</td>
+                              <td key={`tot-${y}-d`} className={`px-2 py-2.5 text-right ${d.cls}`}>{d.text}</td>
+                            </>
+                          )
+                        })}
+                        {(() => {
+                          const grandA = diffData.reduce((s, r) => s + r.totalA, 0)
+                          const grandB = diffData.reduce((s, r) => s + r.totalB, 0)
+                          const d = fmtDelta(grandB - grandA)
+                          return (
+                            <td className={`px-3 py-2.5 text-right border-l border-gray-200 ${d.cls}`}>{d.text}</td>
+                          )
+                        })()}
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Legend */}
+              <p className="text-xs text-gray-400 mt-3">
+                A = stariji batch · B = noviji batch · Δ = razlika (B − A) · Vrijednosti u EUR
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function InstitutionDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [institution, setInstitution] = useState<Institution | null>(null)
@@ -222,6 +484,7 @@ export function InstitutionDetailPage() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('financije')
   const [issueFilter, setIssueFilter] = useState<'sve' | 'nerijesene' | 'rijesene'>('sve')
+  const [diffOpen, setDiffOpen] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -356,8 +619,25 @@ export function InstitutionDetailPage() {
         </div>
       )}
 
+      {/* Diff modal */}
+      {diffOpen && batches.length >= 2 && (
+        <BatchDiffModal batches={batches} onClose={() => setDiffOpen(false)} />
+      )}
+
       {/* Tab: Batch-evi */}
       {tab === 'batches' && (
+        <div className="space-y-3">
+          {batches.length >= 2 && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => setDiffOpen(true)}
+                className="flex items-center gap-2 text-sm px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+              >
+                <span>⇄</span>
+                <span>Usporedi batcheve</span>
+              </button>
+            </div>
+          )}
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
           {batches.length === 0 ? (
             <p className="p-8 text-center text-gray-400">Nema batch-eva za ovu instituciju</p>
@@ -390,6 +670,7 @@ export function InstitutionDetailPage() {
               ))}
             </div>
           )}
+        </div>
         </div>
       )}
 
