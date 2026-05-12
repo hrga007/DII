@@ -13,6 +13,8 @@ import { UploadPage } from './pages/UploadPage'
 import { ImportDetailPage } from './pages/ImportDetailPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { InstitutionsPage } from './pages/InstitutionsPage'
+import { InstitutionDetailPage } from './pages/InstitutionDetailPage'
+import { ReportsPage } from './pages/ReportsPage'
 
 function RequireAuth({ user, children }: { user: User | null; children: React.ReactNode }) {
   if (!isInitialized()) return <Navigate to="/settings" replace />
@@ -75,6 +77,16 @@ export default function App() {
           <Route path="/institutions" element={
             <RequireAuth user={user}>
               <Layout user={user!}><InstitutionsPage /></Layout>
+            </RequireAuth>
+          } />
+          <Route path="/institucije/:id" element={
+            <RequireAuth user={user}>
+              <Layout user={user!}><InstitutionDetailPage /></Layout>
+            </RequireAuth>
+          } />
+          <Route path="/izvjestaji" element={
+            <RequireAuth user={user}>
+              <Layout user={user!}><ReportsPage /></Layout>
             </RequireAuth>
           } />
           <Route path="*" element={<Navigate to="/" replace />} />

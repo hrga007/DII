@@ -386,6 +386,47 @@ export async function getInstalledResources(batchId: string): Promise<InstalledR
   })
 }
 
+export async function getFinancialEntriesByInstitution(institutionId: string): Promise<FinancialEntry[]> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(
+    query(collection(db, 'financialEntries'), where('institutionId', '==', institutionId))
+  )
+  return snap.docs.map((d) => {
+    const data = d.data()
+    return { ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as FinancialEntry
+  })
+}
+
+export async function getInstalledResourcesByInstitution(institutionId: string): Promise<InstalledResource[]> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(
+    query(collection(db, 'installedResources'), where('institutionId', '==', institutionId))
+  )
+  return snap.docs.map((d) => {
+    const data = d.data()
+    return { ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as InstalledResource
+  })
+}
+
+export async function getImportIssuesByInstitution(institutionId: string): Promise<ImportIssue[]> {
+  const batches = await getBatchesByInstitution(institutionId)
+  if (batches.length === 0) return []
+  const db = getFirebaseDb()
+  const batchIds = batches.map((b) => b.id!)
+  const results: ImportIssue[] = []
+  const CHUNK = 10
+  for (let i = 0; i < batchIds.length; i += CHUNK) {
+    const snap = await getDocs(
+      query(collection(db, 'importIssues'), where('batchId', 'in', batchIds.slice(i, i + CHUNK)))
+    )
+    snap.docs.forEach((d) => {
+      const data = d.data()
+      results.push({ ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as ImportIssue)
+    })
+  }
+  return results
+}
+
 // ─── Audit Logs ──────────────────────────────────────────────────
 export async function addAuditLog(log: AuditLog): Promise<void> {
   const db = getFirebaseDb()

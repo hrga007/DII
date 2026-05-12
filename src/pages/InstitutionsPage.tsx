@@ -100,15 +100,21 @@ export function InstitutionsPage() {
             return (
               <div key={id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 {/* Institution header row */}
-                <button
-                  onClick={() => setExpanded(isOpen ? null : id)}
-                  className="w-full flex items-center gap-3 p-4 sm:p-5 text-left hover:bg-gray-50 transition-colors"
-                >
-                  {/* Icon */}
-                  <div className="shrink-0 w-10 h-10 rounded-xl p-lt-bg flex items-center justify-center p-tx font-bold text-sm">
+                <div className="flex items-center gap-3 p-4 sm:p-5 hover:bg-gray-50 transition-colors">
+                  {/* Icon — links to InstitutionDetailPage */}
+                  <Link
+                    to={`/institucije/${id}`}
+                    className="shrink-0 w-10 h-10 rounded-xl p-lt-bg flex items-center justify-center p-tx font-bold text-sm hover:opacity-70 transition-opacity"
+                    title="Otvori detalje institucije"
+                  >
                     {row.institution.name.charAt(0).toUpperCase()}
-                  </div>
+                  </Link>
 
+                  {/* Expand button: main info + stats + chevron */}
+                  <button
+                    onClick={() => setExpanded(isOpen ? null : id)}
+                    className="flex-1 flex items-center gap-3 text-left min-w-0"
+                  >
                   {/* Main info */}
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-800 truncate">{row.institution.name}</p>
@@ -146,7 +152,8 @@ export function InstitutionsPage() {
                   <span className={`text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
                     ▾
                   </span>
-                </button>
+                  </button>
+                </div>
 
                 {/* Expanded batch list */}
                 {isOpen && (
