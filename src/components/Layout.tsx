@@ -14,6 +14,7 @@ const NAV = [
   { to: '/',             label: 'Dashboard',  icon: '📊' },
   { to: '/upload',       label: 'Uvoz',       icon: '📂' },
   { to: '/institutions', label: 'Institucije', icon: '🏛️' },
+  { to: '/izvjestaji',   label: 'Izvještaji', icon: '📈' },
   { to: '/settings',     label: 'Postavke',   icon: '⚙️' },
 ]
 
