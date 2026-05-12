@@ -244,7 +244,7 @@ export function DashboardPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const activeBatches = batches.filter(b => b.isActive)
+  const activeBatches = batches.filter(b => b.isActive !== false)
   const activeIds     = new Set(activeBatches.map(b => b.id!))
 
   const totalErrors   = activeBatches.reduce((s, b) => s + b.errorCount, 0)
