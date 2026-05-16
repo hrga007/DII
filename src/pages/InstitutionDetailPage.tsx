@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
-  getInstitutions,
+  getInstitutionById,
   getBatchesByInstitution,
   getFinancialEntries,
   getFinancialEntriesByInstitution,
@@ -482,6 +482,7 @@ export function InstitutionDetailPage() {
   const [resources, setResources] = useState<InstalledResource[]>([])
   const [issues, setIssues] = useState<ImportIssue[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('financije')
   const [issueFilter, setIssueFilter] = useState<'sve' | 'nerijesene' | 'rijesene'>('sve')
   const [diffOpen, setDiffOpen] = useState(false)
@@ -489,19 +490,37 @@ export function InstitutionDetailPage() {
   useEffect(() => {
     if (!id) return
     setLoading(true)
-    Promise.all([
-      getInstitutions(),
-      getBatchesByInstitution(id),
-      getFinancialEntriesByInstitution(id),
-      getInstalledResourcesByInstitution(id),
-      getImportIssuesByInstitution(id),
-    ]).then(([institutions, batchList, entryList, resList, issueList]) => {
-      setInstitution(institutions.find((i) => i.id === id) ?? null)
-      setBatches(batchList)
-      setEntries(entryList)
-      setResources(resList)
-      setIssues(issueList)
-    }).finally(() => setLoading(false))
+    setLoadError(null)
+
+    // Instituciju dohvaćamo direktnim getDoc — ne ovisi ni o jednom indexu
+    getInstitutionById(id)
+      .then((inst) => {
+        if (!inst) { setLoadError('not_found'); return }
+        setInstitution(inst)
+
+        // Ostale podatke dohvaćamo paralelno; ako neki upit ne uspije,
+        // prikazujemo što možemo (allSettled ne baca za djelomične greške)
+        return Promise.allSettled([
+          getBatchesByInstitution(id),
+          getFinancialEntriesByInstitution(id),
+          getInstalledResourcesByInstitution(id),
+          getImportIssuesByInstitution(id),
+        ]).then(([batchRes, entryRes, resRes, issueRes]) => {
+          if (batchRes.status === 'fulfilled') setBatches(batchRes.value)
+          if (entryRes.status === 'fulfilled') setEntries(entryRes.value)
+          if (resRes.status === 'fulfilled') setResources(resRes.value)
+          if (issueRes.status === 'fulfilled') setIssues(issueRes.value)
+
+          // Ako je nešto palo, pokaži upozorenje (vjerojatno Firestore index)
+          const failed = [batchRes, entryRes, resRes, issueRes].filter(r => r.status === 'rejected')
+          if (failed.length > 0) {
+            const msg = (failed[0] as PromiseRejectedResult).reason?.message ?? 'Nepoznata greška'
+            setLoadError(`partial:${msg}`)
+          }
+        })
+      })
+      .catch((err) => setLoadError(err?.message ?? 'Greška pri učitavanju'))
+      .finally(() => setLoading(false))
   }, [id])
 
   if (loading) {
@@ -512,7 +531,7 @@ export function InstitutionDetailPage() {
     )
   }
 
-  if (!institution) {
+  if (!institution && loadError === 'not_found') {
     return (
       <div className="text-center py-20 text-gray-400">
         <p className="text-3xl mb-2">🏛️</p>
@@ -521,6 +540,19 @@ export function InstitutionDetailPage() {
       </div>
     )
   }
+
+  if (!institution && loadError) {
+    return (
+      <div className="text-center py-20 text-gray-400">
+        <p className="text-3xl mb-2">⚠️</p>
+        <p className="font-medium text-red-600">Greška pri učitavanju</p>
+        <p className="text-xs text-gray-400 mt-2 max-w-lg mx-auto break-all">{loadError}</p>
+        <Link to="/institutions" className="text-sm text-blue-600 hover:underline mt-3 inline-block">← Povratak</Link>
+      </div>
+    )
+  }
+
+  if (!institution) return null
 
   const TABS: { key: Tab; label: string; count?: number }[] = [
     { key: 'financije', label: 'Financijski pregled' },
@@ -580,6 +612,17 @@ export function InstitutionDetailPage() {
           ))}
         </div>
       </div>
+
+      {/* Parcijalna greška — Firestore index ili sl. */}
+      {loadError?.startsWith('partial:') && (
+        <div className="mb-4 p-3 rounded-xl bg-yellow-50 border border-yellow-200 text-xs text-yellow-800">
+          <span className="font-semibold">⚠️ Neki podaci nisu učitani:</span>{' '}
+          {loadError.replace('partial:', '')}
+          {loadError.includes('index') && (
+            <span className="ml-1">— potreban je Firestore composite index (provjeri Firebase Console).</span>
+          )}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 mb-5 border-b border-gray-200 overflow-x-auto">

@@ -1,0 +1,29 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "importBatches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "institutionId", "order": "ASCENDING" },
+        { "fieldPath": "uploadedAt",    "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "importBatches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "institutionId", "order": "ASCENDING" },
+        { "fieldPath": "isActive",      "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "importIssues",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "batchId",   "order": "ASCENDING" },
+        { "fieldPath": "severity",  "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

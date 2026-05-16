@@ -64,6 +64,19 @@ export async function getInstitutions(): Promise<Institution[]> {
   })
 }
 
+export async function getInstitutionById(id: string): Promise<Institution | null> {
+  const db = getFirebaseDb()
+  const snap = await getDoc(doc(db, 'institutions', id))
+  if (!snap.exists()) return null
+  const data = snap.data()
+  return {
+    ...data,
+    id: snap.id,
+    createdAt: fromTimestamp(data.createdAt),
+    updatedAt: fromTimestamp(data.updatedAt),
+  } as Institution
+}
+
 // ─── Import Batches ──────────────────────────────────────────────
 export async function createBatch(batch: ImportBatch): Promise<string> {
   const db = getFirebaseDb()
