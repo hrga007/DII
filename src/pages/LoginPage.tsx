@@ -20,7 +20,6 @@ export function LoginPage() {
               src="/DII/logo-ministarstvo.png"
               alt="Republika Hrvatska — Ministarstvo pravosuđa, uprave i digitalne transformacije"
               className="h-14 w-auto mx-auto mb-3"
-              style={{ filter: 'brightness(0) invert(1)' }}
             />
             <h1 className="font-bold text-lg tracking-tight" style={{ color: 'white' }}>DII IT Ulaganja</h1>
           </div>
