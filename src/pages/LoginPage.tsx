@@ -16,12 +16,14 @@ export function LoginPage() {
       <div className="min-h-screen pg-bg flex items-center justify-center p-4">
         <div className="w-full max-w-sm rounded-2xl overflow-hidden shadow-xl card-bg">
           <div className="hdr-bg px-8 py-7 text-center">
-            <img
-              src="/DII/logo-ministarstvo.png"
-              alt="Republika Hrvatska — Ministarstvo pravosuđa, uprave i digitalne transformacije"
-              className="h-14 w-auto mx-auto mb-3"
-            />
-            <h1 className="font-bold text-lg tracking-tight" style={{ color: 'var(--p-hdr)' }}>DII IT Ulaganja</h1>
+            <div className="bg-white rounded-lg px-4 py-2 inline-flex items-center mb-3">
+              <img
+                src="/DII/logo-ministarstvo.png"
+                alt="Republika Hrvatska — Ministarstvo pravosuđa, uprave i digitalne transformacije"
+                className="h-12 w-auto"
+              />
+            </div>
+            <h1 className="font-bold text-lg tracking-tight" style={{ color: 'white' }}>DII IT Ulaganja</h1>
           </div>
           <div className="p-8 text-center">
             <p className="text-sm mb-6" style={{ color: 'var(--t2)' }}>Aplikacija nije konfigurirana. Postavite Firebase vezu u postavkama.</p>
@@ -60,11 +62,13 @@ export function LoginPage() {
       {/* Vladino zaglavlje */}
       <header className="hdr-bg shadow-sm" role="banner">
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-          <img
-            src="/DII/logo-ministarstvo.png"
-            alt="Republika Hrvatska — Ministarstvo pravosuđa, uprave i digitalne transformacije"
-            className="h-11 w-auto"
-          />
+          <div className="bg-white rounded-lg px-3 py-1.5 flex items-center">
+            <img
+              src="/DII/logo-ministarstvo.png"
+              alt="Republika Hrvatska — Ministarstvo pravosuđa, uprave i digitalne transformacije"
+              className="h-8 w-auto"
+            />
+          </div>
           <ThemeSwitcher compact />
         </div>
       </header>
