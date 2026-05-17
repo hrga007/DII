@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, type DragEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { usePageTitle } from '../hooks/usePageTitle'
 import {
   previewFile, runImport,
   type FilePreview, type ImportProgress, type ImportResult,
@@ -195,6 +196,7 @@ function QueueCard({
 type Tab = 'upload' | 'batches'
 
 export function UploadPage() {
+  usePageTitle('Uvoz podataka')
   const [searchParams] = useSearchParams()
   const [tab,      setTab]      = useState<Tab>(
     searchParams.get('tab') === 'batches' ? 'batches' : 'upload'

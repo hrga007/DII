@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { usePageTitle } from '../hooks/usePageTitle'
 import * as XLSX from 'xlsx'
 import { getAllFinancialEntries, getInstitutions } from '../services/firestoreService'
 import type { FinancialEntry, CategoryGroup } from '../models/financialEntry'
@@ -23,6 +24,7 @@ function fmt(v: number) {
 }
 
 export function ReportsPage() {
+  usePageTitle('Izvještaji')
   const navigate = useNavigate()
   const [allEntries, setAllEntries] = useState<FinancialEntry[]>([])
   const [institutions, setInstitutions] = useState<Institution[]>([])

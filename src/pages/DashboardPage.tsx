@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { getBatches, getAllFinancialEntries, getAllImportIssues, resolveIssue, addAuditLog } from '../services/firestoreService'
 import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
@@ -361,6 +362,7 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
 
 // ─────────────────────────────────────────────────────────────────
 export function DashboardPage() {
+  usePageTitle('Pregled')
   const appSettings = getAppSettings()
 
   const [batches,    setBatches]    = useState<ImportBatch[]>([])

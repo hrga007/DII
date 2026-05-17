@@ -1,47 +1,31 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
-export type Mode    = 'light' | 'dark'
-export type Palette = 'blue' | 'red' | 'yellow'
+export type Mode = 'light' | 'dark'
 
 interface ThemeCtx {
-  mode:         Mode
-  palette:      Palette
-  toggleMode:   () => void
-  setPalette:   (p: Palette) => void
+  mode:       Mode
+  toggleMode: () => void
 }
 
 const Ctx = createContext<ThemeCtx>({
-  mode: 'dark', palette: 'red',
-  toggleMode: () => {}, setPalette: () => {},
+  mode: 'light',
+  toggleMode: () => {},
 })
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<Mode>(
-    () => (localStorage.getItem('ui-mode') as Mode) ?? 'dark'
-  )
-  const [palette, setPaletteState] = useState<Palette>(
-    () => (localStorage.getItem('ui-palette') as Palette) ?? 'red'
+    () => (localStorage.getItem('ui-mode') as Mode) ?? 'light'
   )
 
-  // Apply dark class to <html>
   useEffect(() => {
-    const html = document.documentElement
-    html.classList.toggle('dark', mode === 'dark')
+    document.documentElement.classList.toggle('dark', mode === 'dark')
     localStorage.setItem('ui-mode', mode)
   }, [mode])
-
-  // Apply data-palette to <html>
-  useEffect(() => {
-    document.documentElement.dataset.palette = palette
-    localStorage.setItem('ui-palette', palette)
-  }, [palette])
 
   return (
     <Ctx.Provider value={{
       mode,
-      palette,
       toggleMode: () => setMode(m => m === 'dark' ? 'light' : 'dark'),
-      setPalette: (p) => setPaletteState(p),
     }}>
       {children}
     </Ctx.Provider>

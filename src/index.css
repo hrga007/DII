@@ -32,19 +32,19 @@ body {
    CSS VARIJABLE — PALETE I SURFACE
 ═══════════════════════════════════════════════════════ */
 :root {
-  /* ── Plava paleta (default) ── */
-  --p:       #1d4ed8;
-  --p-h:     #1e40af;
-  --p-a:     #1e3a8a;
-  --p-lt:    #eff6ff;
-  --p-tx:    #1d4ed8;
-  --p-rg:    #3b82f6;
-  --p-hdr:   #1e3a8a;
-  --p-hd2:   #dbeafe;
-  --p-mu:    #bfdbfe;
+  /* ── Vladina paleta — Ministarstvo pravosuđa, uprave i digitalne transformacije ── */
+  --p:       #1c5296;
+  --p-h:     #154782;
+  --p-a:     #1c3664;
+  --p-lt:    #e8f0f8;
+  --p-tx:    #1c3664;
+  --p-rg:    #4a7cb5;
+  --p-hdr:   #1c3664;
+  --p-hd2:   #c5d8f0;
+  --p-mu:    #d0e4f7;
 
   /* ── Površine — svjetlo ── */
-  --s-pg:    #f1f5f9;
+  --s-pg:    #f0f4f8;
   --s-cd:    #ffffff;
   --s-rz:    #f8fafc;
   --t1:      #0f172a;
@@ -53,30 +53,6 @@ body {
   --t4:      #94a3b8;
   --bd:      #e2e8f0;
   --bd2:     #f1f5f9;
-}
-
-[data-palette="red"] {
-  --p:       #c41a1a;
-  --p-h:     #a31515;
-  --p-a:     #7f1d1d;
-  --p-lt:    #fff0f0;
-  --p-tx:    #c41a1a;
-  --p-rg:    #f05050;
-  --p-hdr:   #3a0808;
-  --p-hd2:   #fecaca;
-  --p-mu:    #fecaca;
-}
-
-[data-palette="yellow"] {
-  --p:       #b45309;
-  --p-h:     #92400e;
-  --p-a:     #78350f;
-  --p-lt:    #fffbeb;
-  --p-tx:    #92400e;
-  --p-rg:    #f59e0b;
-  --p-hdr:   #1c0a00;
-  --p-hd2:   #fde68a;
-  --p-mu:    #fde68a;
 }
 
 .dark {
