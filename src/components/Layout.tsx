@@ -60,7 +60,6 @@ export function Layout({ user, children }: Props) {
               src="/DII/logo-ministarstvo.png"
               alt="Republika Hrvatska — Ministarstvo pravosuđa, uprave i digitalne transformacije"
               className="h-10 w-auto"
-              style={{ filter: 'brightness(0) invert(1)' }}
             />
             <div className="hidden sm:block border-l pl-3" style={{ borderColor: 'rgba(255,255,255,0.25)' }}>
               <div className="text-xs font-semibold leading-tight" style={{ color: 'rgba(255,255,255,0.6)' }}>
