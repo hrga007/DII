@@ -7,6 +7,10 @@ import {
 import { useTheme } from '../hooks/useTheme'
 import { useAppSettings } from '../hooks/useAppSettings'
 import { usePageTitle } from '../hooks/usePageTitle'
+import {
+  loadBackendSettings, saveBackendSettings, clearBackendSettings,
+  type BackendSettings, type CduConfig,
+} from '../providers'
 
 // ── Firebase fields ──────────────────────────────────────────────
 const FB_FIELDS: { key: keyof FirebaseConfig; label: string; placeholder: string }[] = [
@@ -43,6 +47,33 @@ function PillBtn({
   )
 }
 
+function CduField({
+  label, desc, value, onChange, placeholder,
+}: {
+  label: string
+  desc?: string
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-start gap-3 py-4 px-5 border-b border-gray-100 last:border-0">
+      <div className="sm:w-52 shrink-0 pt-1.5">
+        <p className="text-sm font-medium text-gray-700">{label}</p>
+        {desc && <p className="text-xs text-gray-400 mt-0.5 leading-snug">{desc}</p>}
+      </div>
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="p-ring flex-1 min-w-0 border rounded-xl px-3 py-2 text-sm font-mono"
+        style={{ borderColor: 'var(--bd)', backgroundColor: 'var(--s-rz)', color: 'var(--t1)' }}
+      />
+    </div>
+  )
+}
+
 function SettingRow({
   label, desc, children,
 }: { label: string; desc?: string; children: React.ReactNode }) {
@@ -58,14 +89,24 @@ function SettingRow({
 }
 
 // ── Tab definitions ───────────────────────────────────────────────
-type SettingsTab = 'firebase' | 'izgled' | 'prikaz' | 'info'
+type SettingsTab = 'firebase' | 'backend' | 'izgled' | 'prikaz' | 'info'
 
 const TABS: { key: SettingsTab; icon: string; label: string }[] = [
   { key: 'firebase', icon: '🔥', label: 'Firebase' },
+  { key: 'backend',  icon: '🏛️', label: 'Backend (CDU)' },
   { key: 'izgled',   icon: '🎨', label: 'Izgled' },
   { key: 'prikaz',   icon: '📊', label: 'Prikaz' },
   { key: 'info',     icon: 'ℹ️',  label: 'O aplikaciji' },
 ]
+
+const EMPTY_CDU: CduConfig = {
+  apiBaseUrl: '',
+  gpdbSchema: 'dii_ulaganja',
+  s3Bucket: '',
+  nifiEndpoint: '',
+  catalogUrl: '',
+  authMethod: 'jwt-local',
+}
 
 // ─────────────────────────────────────────────────────────────────
 export function SettingsPage() {
@@ -87,6 +128,11 @@ export function SettingsPage() {
 
   // App display settings
   const { settings, update, reset } = useAppSettings()
+
+  // Backend (CDU) settings
+  const [backend, setBackend] = useState<BackendSettings>(() => loadBackendSettings())
+  const [cduCfg, setCduCfg] = useState<CduConfig>(backend.cdu ?? EMPTY_CDU)
+  const [backendSaved, setBackendSaved] = useState(false)
 
   useEffect(() => {
     if (!hasBuildConfig) {
@@ -116,6 +162,24 @@ export function SettingsPage() {
 
   function handleFbReset() {
     clearConfig(); setFbConfig(EMPTY_FB); setFbStatus('idle'); setFbError('')
+  }
+
+  function handleBackendSave() {
+    const next: BackendSettings = backend.kind === 'cdu'
+      ? { kind: 'cdu', cdu: cduCfg }
+      : { kind: 'firebase' }
+    saveBackendSettings(next)
+    setBackend(next)
+    setBackendSaved(true)
+    setTimeout(() => setBackendSaved(false), 2500)
+  }
+
+  function handleBackendReset() {
+    clearBackendSettings()
+    const next: BackendSettings = { kind: 'firebase' }
+    setBackend(next)
+    setCduCfg(EMPTY_CDU)
+    setBackendSaved(false)
   }
 
   const fbOk = fbStatus === 'ok'
@@ -272,6 +336,142 @@ export function SettingsPage() {
         {/* ══════════════════════════════════════════════════════
             TAB: IZGLED
         ══════════════════════════════════════════════════════ */}
+        {/* ══════════════════════════════════════════════════════
+            TAB: BACKEND (CDU) — priprema za migraciju
+        ══════════════════════════════════════════════════════ */}
+        {tab === 'backend' && (
+          <div className="space-y-4">
+
+            {/* Informativni okvir */}
+            <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--bd)', backgroundColor: 'var(--p-lt)' }}>
+              <div className="flex gap-3">
+                <span className="text-xl">🏛️</span>
+                <div className="text-sm leading-relaxed" style={{ color: 'var(--p-tx)' }}>
+                  <p className="font-semibold mb-1">Priprema za migraciju u CDU (Centar dijeljenih usluga)</p>
+                  <p>
+                    Aplikacija je arhitekturalno pripremljena za buduće prebacivanje s Firebase-a
+                    na državnu CDU Podatkovnu platformu (GreenPlum baza, S3 storage, NiFi ingestion).
+                    Aktivacija CDU backend-a trenutno <strong>nije implementirana</strong> — odabir
+                    ostaje na Firebase-u. Polja ispod služe za buduću konfiguraciju kad backend
+                    bude spreman. Detaljnije: vidi <code>CDU_MIGRATION.md</code>.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Odabir backend-a */}
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <SettingRow
+                label="Aktivni backend"
+                desc="Trenutno se može mijenjati samo Firebase. CDU opcija je pripremljena."
+              >
+                <PillBtn
+                  active={backend.kind === 'firebase'}
+                  onClick={() => setBackend({ ...backend, kind: 'firebase' })}
+                >
+                  🔥 Firebase
+                </PillBtn>
+                <PillBtn
+                  active={backend.kind === 'cdu'}
+                  onClick={() => setBackend({ ...backend, kind: 'cdu', cdu: cduCfg })}
+                >
+                  🏛️ CDU (uskoro)
+                </PillBtn>
+              </SettingRow>
+            </div>
+
+            {/* CDU konfiguracija (vidljivo samo ako je odabran CDU) */}
+            {backend.kind === 'cdu' && (
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100" style={{ backgroundColor: 'var(--s-rz)' }}>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--t1)' }}>CDU parametri (priprema)</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>
+                    Tehnički parametri za buduće povezivanje. Ne diraju trenutnu Firebase konekciju.
+                  </p>
+                </div>
+
+                <CduField
+                  label="API URL backend-a"
+                  desc="Naš Node.js posrednik koji će biti instaliran na CDU IaaS"
+                  value={cduCfg.apiBaseUrl}
+                  onChange={v => setCduCfg({ ...cduCfg, apiBaseUrl: v })}
+                  placeholder="https://dii-api.cdu.gov.hr"
+                />
+                <CduField
+                  label="GPDB schema"
+                  desc="Logička schema u CDU GreenPlum bazi"
+                  value={cduCfg.gpdbSchema ?? ''}
+                  onChange={v => setCduCfg({ ...cduCfg, gpdbSchema: v })}
+                  placeholder="dii_ulaganja"
+                />
+                <CduField
+                  label="S3 bucket"
+                  desc="Bucket za pohranu uploadanih datoteka (Excel, PDF)"
+                  value={cduCfg.s3Bucket ?? ''}
+                  onChange={v => setCduCfg({ ...cduCfg, s3Bucket: v })}
+                  placeholder="dii-uploads"
+                />
+                <CduField
+                  label="NiFi endpoint"
+                  desc="Opcionalno — za automatski uvoz vanjskih datoteka"
+                  value={cduCfg.nifiEndpoint ?? ''}
+                  onChange={v => setCduCfg({ ...cduCfg, nifiEndpoint: v })}
+                  placeholder="https://nifi.cdu.gov.hr/dii"
+                />
+                <CduField
+                  label="Talend Catalog URL"
+                  desc="Opcionalno — registracija metapodataka u podatkovnom katalogu"
+                  value={cduCfg.catalogUrl ?? ''}
+                  onChange={v => setCduCfg({ ...cduCfg, catalogUrl: v })}
+                  placeholder="https://catalog.cdu.gov.hr:11480"
+                />
+
+                <SettingRow
+                  label="Autentifikacija"
+                  desc="NIAS (državni SSO) bit će dostupan u kasnijoj fazi"
+                >
+                  <PillBtn
+                    active={cduCfg.authMethod === 'jwt-local'}
+                    onClick={() => setCduCfg({ ...cduCfg, authMethod: 'jwt-local' })}
+                  >
+                    Lokalni JWT
+                  </PillBtn>
+                  <PillBtn
+                    active={cduCfg.authMethod === 'nias'}
+                    onClick={() => setCduCfg({ ...cduCfg, authMethod: 'nias' })}
+                  >
+                    NIAS (uskoro)
+                  </PillBtn>
+                </SettingRow>
+
+                <div className="px-5 py-3 text-xs" style={{ backgroundColor: 'var(--s-rz)', color: 'var(--t4)' }}>
+                  ⚠️ Lozinke i pristupni tokeni se <strong>ne unose</strong> u UI — backend ih
+                  čita iz sigurnog vault-a na CDU IaaS strani.
+                </div>
+              </div>
+            )}
+
+            {/* Akcije */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handleBackendSave}
+                className="btn-primary px-4 py-2 rounded-xl text-sm font-medium"
+              >
+                Spremi postavke
+              </button>
+              <button
+                onClick={handleBackendReset}
+                className="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+              >
+                Vrati zadano (Firebase)
+              </button>
+              {backendSaved && (
+                <span className="text-sm" style={{ color: 'var(--p-tx)' }}>✓ Spremljeno</span>
+              )}
+            </div>
+          </div>
+        )}
+
         {tab === 'izgled' && (
           <div className="space-y-4">
 
