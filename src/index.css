@@ -82,9 +82,9 @@ body {
 .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
 .btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--p-rg); }
 
-/* Header / navigacija — bijela podloga s navy donjom granicom (gov.hr pattern) */
-.hdr-bg  { background-color: #ffffff; border-bottom: 3px solid var(--p-hdr); }
-.hdr-tx  { color: var(--p-hdr); }
+/* Header / navigacija */
+.hdr-bg  { background-color: var(--p-hdr); }
+.hdr-tx  { color: var(--p-hd2); }
 
 /* Aktivno stanje (tab, filter, nav) */
 .act-bg  { background-color: var(--p) !important; }

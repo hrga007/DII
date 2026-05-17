@@ -51,21 +51,23 @@ export function Layout({ user, children }: Props) {
       </a>
 
       {/* ── Header ────────────────────────────────────────── */}
-      <header className="hdr-bg shadow-sm sticky top-0 z-30" role="banner">
+      <header className="hdr-bg text-white shadow-md sticky top-0 z-30" role="banner">
         <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-3">
 
           {/* Logo institucije */}
           <Link to="/" className="flex items-center gap-3 shrink-0" aria-label="Početna stranica — DII IT Ulaganja">
-            <img
-              src="/DII/logo-ministarstvo.png"
-              alt="Republika Hrvatska — Ministarstvo pravosuđa, uprave i digitalne transformacije"
-              className="h-11 w-auto"
-            />
-            <div className="hidden sm:block border-l pl-3" style={{ borderColor: 'var(--bd)' }}>
-              <div className="text-xs font-semibold leading-tight" style={{ color: 'var(--t3)' }}>
+            <div className="bg-white rounded-lg px-3 py-1.5 flex items-center">
+              <img
+                src="/DII/logo-ministarstvo.png"
+                alt="Republika Hrvatska — Ministarstvo pravosuđa, uprave i digitalne transformacije"
+                className="h-8 w-auto"
+              />
+            </div>
+            <div className="hidden sm:block border-l pl-3" style={{ borderColor: 'rgba(255,255,255,0.25)' }}>
+              <div className="text-xs font-semibold leading-tight" style={{ color: 'rgba(255,255,255,0.6)' }}>
                 DII
               </div>
-              <div className="text-sm font-bold leading-tight" style={{ color: 'var(--p-hdr)' }}>
+              <div className="text-sm font-bold leading-tight" style={{ color: 'white' }}>
                 IT Ulaganja
               </div>
             </div>
@@ -78,14 +80,10 @@ export function Layout({ user, children }: Props) {
                 key={to}
                 to={to}
                 aria-current={isActive(to) ? 'page' : undefined}
-                className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
-                style={
-                  isActive(to)
-                    ? { backgroundColor: 'var(--p-hdr)', color: '#fff' }
-                    : { color: 'var(--t2)' }
-                }
-                onMouseEnter={e => { if (!isActive(to)) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--s-rz)' }}
-                onMouseLeave={e => { if (!isActive(to)) (e.currentTarget as HTMLElement).style.backgroundColor = '' }}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive(to) ? 'act-bg act-tx' : 'hover:bg-white/10'
+                }`}
+                style={isActive(to) ? {} : { color: 'rgba(255,255,255,0.8)' }}
               >
                 {label}
               </Link>
@@ -95,14 +93,12 @@ export function Layout({ user, children }: Props) {
           {/* Desktop desno: dark/light toggle + korisnik */}
           <div className="hidden md:flex items-center gap-3">
             <ThemeSwitcher compact />
-            <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: 'var(--bd)' }}>
-              <span className="text-xs" style={{ color: 'var(--t3)' }}>{user.email}</span>
+            <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+              <span className="text-xs" style={{ color: 'rgba(255,255,255,0.55)' }}>{user.email}</span>
               <button
                 onClick={handleLogout}
-                className="text-xs px-3 py-1.5 rounded-lg transition-colors"
-                style={{ color: 'var(--t2)' }}
-                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.backgroundColor = 'var(--s-rz)')}
-                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = '')}
+                className="text-xs px-3 py-1.5 rounded-lg transition-colors hover:bg-white/10"
+                style={{ color: 'rgba(255,255,255,0.8)' }}
                 aria-label="Odjava iz aplikacije"
               >
                 Odjava
@@ -112,17 +108,15 @@ export function Layout({ user, children }: Props) {
 
           {/* Mobile hamburger */}
           <button
-            className="md:hidden flex flex-col gap-1.5 p-2 rounded-lg transition-colors"
+            className="md:hidden flex flex-col gap-1.5 p-2 rounded-lg hover:bg-white/10 transition-colors"
             onClick={() => setMenuOpen(true)}
-            onMouseEnter={e => ((e.currentTarget as HTMLElement).style.backgroundColor = 'var(--s-rz)')}
-            onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = '')}
             aria-label="Otvori izbornik"
             aria-expanded={menuOpen}
             aria-controls="mobile-menu"
           >
-            <span className="block w-5 h-0.5 rounded" style={{ backgroundColor: 'var(--p-hdr)' }} aria-hidden="true" />
-            <span className="block w-5 h-0.5 rounded" style={{ backgroundColor: 'var(--p-hdr)' }} aria-hidden="true" />
-            <span className="block w-5 h-0.5 rounded" style={{ backgroundColor: 'var(--p-hdr)' }} aria-hidden="true" />
+            <span className="block w-5 h-0.5 bg-white rounded" aria-hidden="true" />
+            <span className="block w-5 h-0.5 bg-white rounded" aria-hidden="true" />
+            <span className="block w-5 h-0.5 bg-white rounded" aria-hidden="true" />
           </button>
         </div>
       </header>
@@ -135,11 +129,11 @@ export function Layout({ user, children }: Props) {
 
             {/* Drawer zaglavlje */}
             <div className="hdr-bg px-5 py-4 flex items-center justify-between">
-              <span className="font-bold" style={{ color: 'var(--p-hdr)' }}>Izbornik</span>
+              <span className="font-bold" style={{ color: 'white' }}>Izbornik</span>
               <button
                 onClick={() => setMenuOpen(false)}
                 className="text-2xl leading-none hover:opacity-70 transition-opacity"
-                style={{ color: 'var(--t2)' }}
+                style={{ color: 'rgba(255,255,255,0.8)' }}
                 aria-label="Zatvori izbornik"
               >
                 ×
