@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
+import { usePageTitle } from '../hooks/usePageTitle'
 import {
   getBatch,
   getFinancialEntries,
@@ -399,6 +400,7 @@ function ReuploadZone({ batch, onImported }: ReuploadZoneProps) {
 
 // ─── Glavna stranica ──────────────────────────────────────────────
 export function ImportDetailPage() {
+  usePageTitle('Detalji uvoza')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [batch, setBatch] = useState<ImportBatch | null>(null)

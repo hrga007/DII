@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { getInstitutions } from '../services/firestoreService'
 import { getBatches } from '../services/firestoreService'
 import type { Institution } from '../models/institution'
@@ -14,6 +15,7 @@ interface InstitutionRow {
 }
 
 export function InstitutionsPage() {
+  usePageTitle('Institucije')
   const [rows, setRows] = useState<InstitutionRow[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)

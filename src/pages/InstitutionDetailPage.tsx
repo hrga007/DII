@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { usePageTitle } from '../hooks/usePageTitle'
 import {
   getInstitutionById,
   getBatchesByInstitution,
@@ -475,6 +476,7 @@ function BatchDiffModal({ batches, onClose }: BatchDiffModalProps) {
 }
 
 export function InstitutionDetailPage() {
+  usePageTitle('Detalji institucije')
   const { id } = useParams<{ id: string }>()
   const [institution, setInstitution] = useState<Institution | null>(null)
   const [batches, setBatches] = useState<ImportBatch[]>([])

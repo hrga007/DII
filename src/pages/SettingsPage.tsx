@@ -4,8 +4,9 @@ import {
   saveConfig, loadConfig, clearConfig, initFirebase,
   isInitialized, getBuildConfig, type FirebaseConfig,
 } from '../config/firebase'
-import { useTheme, type Palette } from '../hooks/useTheme'
+import { useTheme } from '../hooks/useTheme'
 import { useAppSettings } from '../hooks/useAppSettings'
+import { usePageTitle } from '../hooks/usePageTitle'
 
 // ── Firebase fields ──────────────────────────────────────────────
 const FB_FIELDS: { key: keyof FirebaseConfig; label: string; placeholder: string }[] = [
@@ -21,13 +22,6 @@ const EMPTY_FB: FirebaseConfig = {
   apiKey: '', authDomain: '', projectId: '',
   storageBucket: '', messagingSenderId: '', appId: '',
 }
-
-// ── Palettes ─────────────────────────────────────────────────────
-const PALETTES: { key: Palette; color: string; label: string; desc: string }[] = [
-  { key: 'red',    color: '#c41a1a', label: 'Crvena',   desc: 'Matrix' },
-  { key: 'blue',   color: '#1d4ed8', label: 'Plava',    desc: 'Klasična' },
-  { key: 'yellow', color: '#b45309', label: 'Jantarna', desc: 'Topla' },
-]
 
 const YEARS = [2024, 2025, 2026, 2027, 2028]
 
@@ -86,8 +80,10 @@ export function SettingsPage() {
   const [fbStatus, setFbStatus] = useState<'idle' | 'connecting' | 'ok' | 'error'>('idle')
   const [fbError,  setFbError]  = useState('')
 
+  usePageTitle('Postavke')
+
   // Theme
-  const { mode, palette, toggleMode, setPalette } = useTheme()
+  const { mode, toggleMode } = useTheme()
 
   // App display settings
   const { settings, update, reset } = useAppSettings()
@@ -309,43 +305,6 @@ export function SettingsPage() {
                         <p className={`text-xs mt-0.5 ${active ? 'text-white/60' : 'text-gray-400'}`}>
                           {sub}
                         </p>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Palette */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5">
-              <p className="text-sm font-semibold text-gray-700 mb-4">Paleta boja</p>
-              <div className="grid grid-cols-3 gap-3">
-                {PALETTES.map(({ key, color, label, desc }) => {
-                  const active = palette === key
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => setPalette(key)}
-                      className={`flex flex-col items-center gap-3 py-5 px-3 rounded-xl border-2 transition-all ${
-                        active ? '' : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
-                      }`}
-                      style={active
-                        ? { borderColor: color, backgroundColor: color + '12' }
-                        : {}}
-                    >
-                      <div
-                        className="w-9 h-9 rounded-full flex items-center justify-center shadow-md transition-transform"
-                        style={{
-                          backgroundColor: color,
-                          transform: active ? 'scale(1.1)' : 'scale(1)',
-                          boxShadow: active ? `0 0 0 3px ${color}40` : undefined,
-                        }}
-                      >
-                        {active && <span className="text-white text-xs font-bold">✓</span>}
-                      </div>
-                      <div className="text-center">
-                        <p className="text-xs font-semibold text-gray-700">{label}</p>
-                        <p className="text-xs text-gray-400">{desc}</p>
                       </div>
                     </button>
                   )
