@@ -11,6 +11,10 @@ import {
   loadBackendSettings, saveBackendSettings, clearBackendSettings,
   type BackendSettings, type CduConfig,
 } from '../providers'
+import {
+  listUsers, createUser, updateRole, removeUser,
+  type UserProfile, type Role,
+} from '../services/userService'
 
 const FB_FIELDS: { key: keyof FirebaseConfig; label: string; placeholder: string }[] = [
   { key: 'apiKey',            label: 'API Key',             placeholder: 'AIzaSy...' },
@@ -135,6 +139,65 @@ export function SettingsPage() {
   const [cduCfg, setCduCfg] = useState<CduConfig>(backend.cdu ?? EMPTY_CDU)
   const [backendSaved, setBackendSaved] = useState(false)
 
+  // Korisnici state
+  const [users, setUsers] = useState<UserProfile[]>([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [usersLoaded, setUsersLoaded] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newRole, setNewRole] = useState<Role>('viewer')
+  const [createStatus, setCreateStatus] = useState<'idle' | 'creating' | 'error'>('idle')
+  const [createError, setCreateError] = useState('')
+  const [updatingUid, setUpdatingUid] = useState<string | null>(null)
+  const [confirmRemoveUid, setConfirmRemoveUid] = useState<string | null>(null)
+  const [removingUid, setRemovingUid] = useState<string | null>(null)
+
+  async function loadUsers() {
+    setUsersLoading(true)
+    try {
+      setUsers(await listUsers())
+      setUsersLoaded(true)
+    } finally {
+      setUsersLoading(false)
+    }
+  }
+
+  async function handleCreateUser(e: FormEvent) {
+    e.preventDefault()
+    setCreateStatus('creating'); setCreateError('')
+    try {
+      await createUser(newEmail.trim(), newPassword, newRole)
+      await loadUsers()
+      setShowCreateModal(false)
+      setNewEmail(''); setNewPassword(''); setNewRole('viewer')
+      setCreateStatus('idle')
+    } catch (err) {
+      setCreateError(String(err).replace('FirebaseError: ', ''))
+      setCreateStatus('error')
+    }
+  }
+
+  async function handleUpdateRole(uid: string, role: Role) {
+    setUpdatingUid(uid)
+    try {
+      await updateRole(uid, role)
+      setUsers(prev => prev.map(u => u.uid === uid ? { ...u, role } : u))
+    } finally {
+      setUpdatingUid(null)
+    }
+  }
+
+  async function handleRemoveUser(uid: string) {
+    setRemovingUid(uid); setConfirmRemoveUid(null)
+    try {
+      await removeUser(uid)
+      setUsers(prev => prev.filter(u => u.uid !== uid))
+    } finally {
+      setRemovingUid(null)
+    }
+  }
+
   useEffect(() => {
     if (!hasBuildConfig) {
       const saved = loadConfig()
@@ -182,28 +245,23 @@ export function SettingsPage() {
     setBackendSaved(false)
   }
 
+  useEffect(() => {
+    if (tab === 'korisnici' && !usersLoaded && isInitialized()) {
+      loadUsers()
+    }
+  }, [tab, usersLoaded])
+
   const fbOk = fbStatus === 'ok'
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: 'var(--s-pg)' }}>
-      <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
+    <div>
+      <div className="max-w-4xl mx-auto">
 
         {/* ── Page header ── */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            {initialized && (
-              <button
-                onClick={() => navigate(-1)}
-                className="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
-                title="Nazad"
-              >
-                ←
-              </button>
-            )}
-            <div>
-              <h1 className="text-xl font-bold" style={{ color: 'var(--t1)' }}>Postavke</h1>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>Konfiguracija i upravljanje</p>
-            </div>
+          <div>
+            <h1 className="text-xl font-bold" style={{ color: 'var(--t1)' }}>Postavke</h1>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>Konfiguracija i upravljanje</p>
           </div>
           {fbOk && (
             <span className="flex items-center gap-1.5 bg-green-100 text-green-700 text-xs font-medium px-3 py-1.5 rounded-full">
@@ -236,35 +294,214 @@ export function SettingsPage() {
         {tab === 'korisnici' && (
           <div className="space-y-4">
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-              <SectionHeader
-                title="Upravljanje korisnicima"
-                desc="Pregled korisnika, dodjela uloga i kreiranje novih računa"
-              />
-              <div className="p-8 text-center">
-                <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl"
-                  style={{ backgroundColor: 'var(--p-lt)' }}
-                >
-                  👤
+              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100" style={{ backgroundColor: 'var(--s-rz)' }}>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--t1)' }}>Korisnici</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>
+                    Pregled korisnika i dodjela uloga
+                  </p>
                 </div>
-                <p className="font-semibold text-gray-700 mb-1">Upravljanje korisnicima</p>
-                <p className="text-sm text-gray-400 max-w-sm mx-auto leading-relaxed">
-                  Kreiranje korisnika, dodjela uloga (admin / viewer) i administracija
-                  će biti dostupni u nadolazećoj verziji.
-                </p>
+                {isInitialized() && (
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="btn-primary text-sm px-4 py-2 rounded-xl font-medium"
+                  >
+                    + Novi korisnik
+                  </button>
+                )}
               </div>
+
+              {!isInitialized() ? (
+                <div className="p-6 text-center text-sm text-gray-400">
+                  Firebase nije spojen. Konfiguriraj vezu na tabu Povezivanje.
+                </div>
+              ) : usersLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <div className="animate-spin h-6 w-6 border-4 spin-primary rounded-full" />
+                </div>
+              ) : users.length === 0 ? (
+                <div className="p-8 text-center">
+                  <p className="text-sm font-medium text-gray-600 mb-1">Nema korisnika u bazi</p>
+                  <p className="text-xs text-gray-400 max-w-xs mx-auto leading-relaxed">
+                    Dodaj prvog admina. Trenutno prijavljeni korisnik nema Firestore zapis —
+                    dodaj ga ručno ili kroz gumb iznad.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {users.map(u => {
+                    const isRemoving = removingUid === u.uid
+                    const isConfirm  = confirmRemoveUid === u.uid
+                    const isUpdating = updatingUid === u.uid
+                    return (
+                      <div key={u.uid} className="flex items-center gap-4 px-5 py-3">
+                        <div
+                          className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0"
+                          style={{ backgroundColor: 'var(--p-lt)', color: 'var(--p-tx)' }}
+                        >
+                          {u.email.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{u.email}</p>
+                          {u.createdAt && (
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              Dodan: {u.createdAt.toLocaleDateString('hr-HR')}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {isUpdating ? (
+                            <span className="animate-spin h-4 w-4 border-2 spin-primary rounded-full" />
+                          ) : (
+                            <div className="flex gap-1">
+                              {(['admin', 'viewer'] as Role[]).map(r => (
+                                <button
+                                  key={r}
+                                  onClick={() => u.role !== r && handleUpdateRole(u.uid, r)}
+                                  className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                                    u.role === r
+                                      ? 'act-bg act-tx'
+                                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  {r === 'admin' ? 'Admin' : 'Viewer'}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {isRemoving ? (
+                            <span className="animate-spin h-4 w-4 border-2 border-red-400 border-t-transparent rounded-full" />
+                          ) : isConfirm ? (
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleRemoveUser(u.uid)}
+                                className="text-xs px-2.5 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
+                              >
+                                Obriši
+                              </button>
+                              <button
+                                onClick={() => setConfirmRemoveUid(null)}
+                                className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                              >
+                                Ne
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmRemoveUid(u.uid)}
+                              className="text-gray-300 hover:text-red-500 transition-colors px-1 text-sm"
+                              title="Ukloni korisnika"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {usersLoaded && (
+                <div className="px-5 py-3 border-t border-gray-50 bg-gray-50 text-xs text-gray-400">
+                  Brisanje uklanja Firestore zapis. Korisnik ostaje u Firebase Auth — za potpuno brisanje koristi Firebase konzolu.
+                </div>
+              )}
             </div>
 
-            <div
-              className="flex items-start gap-3 px-4 py-3 rounded-xl text-sm"
-              style={{ backgroundColor: 'var(--p-lt)', color: 'var(--p-tx)' }}
-            >
-              <span className="shrink-0 mt-0.5">ℹ️</span>
-              <span>
-                Do implementacije upravljanja korisnicima, korisnike i role možeš postaviti
-                ručno u Firebase konzoli pod <strong>Authentication</strong> i <strong>Firestore</strong>.
-              </span>
-            </div>
+            {/* Modal: novi korisnik */}
+            {showCreateModal && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+                onClick={e => { if (e.target === e.currentTarget) setShowCreateModal(false) }}
+              >
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100" style={{ backgroundColor: 'var(--s-rz)' }}>
+                    <p className="font-semibold text-gray-800">Novi korisnik</p>
+                  </div>
+                  <form onSubmit={handleCreateUser} className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        autoFocus
+                        value={newEmail}
+                        onChange={e => setNewEmail(e.target.value)}
+                        placeholder="korisnik@tijelo.hr"
+                        className="p-ring w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                        Lozinka
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                        placeholder="Minimalno 6 znakova"
+                        className="p-ring w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                        Uloga
+                      </label>
+                      <div className="flex gap-2">
+                        {(['admin', 'viewer'] as Role[]).map(r => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => setNewRole(r)}
+                            className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors border-2 ${
+                              newRole === r
+                                ? 'border-transparent act-bg act-tx'
+                                : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
+                            }`}
+                          >
+                            {r === 'admin' ? 'Admin' : 'Viewer'}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">
+                        {newRole === 'admin'
+                          ? 'Admin može upravljati korisnicima i svim podacima.'
+                          : 'Viewer može pregledavati podatke bez izmjena.'}
+                      </p>
+                    </div>
+
+                    {createStatus === 'error' && createError && (
+                      <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+                        {createError}
+                      </div>
+                    )}
+
+                    <div className="flex gap-3 pt-1">
+                      <button
+                        type="submit"
+                        disabled={createStatus === 'creating'}
+                        className="btn-primary flex-1 py-2.5 rounded-xl font-medium text-sm"
+                      >
+                        {createStatus === 'creating' ? 'Kreiranje...' : 'Kreiraj korisnika'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowCreateModal(false); setCreateStatus('idle'); setCreateError('') }}
+                        className="px-5 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors text-sm"
+                      >
+                        Odustani
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

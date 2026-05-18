@@ -155,14 +155,6 @@ export function LoginPage() {
                 </button>
               </form>
 
-              <p className="mt-5 text-center text-xs" style={{ color: 'var(--t4)' }}>
-                <button
-                  onClick={() => navigate('/settings')}
-                  className="underline hover:opacity-80 p-tx"
-                >
-                  Postavke Firebase veze
-                </button>
-              </p>
             </div>
           </div>
         </div>
