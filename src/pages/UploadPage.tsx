@@ -549,7 +549,7 @@ export function UploadPage() {
               </div>
 
               {/* Desktop tablica */}
-              <div className="hidden sm:block bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="hidden sm:block bg-white rounded-2xl border border-gray-200 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
@@ -583,7 +583,7 @@ export function UploadPage() {
                           <td className="px-4 py-3 text-right text-gray-500">
                             {b.importSummary?.financialEntriesCount ?? '–'}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center justify-end gap-3">
                               {isDeleting ? (
                                 <span className="animate-spin h-4 w-4 border-2 border-red-400 border-t-transparent rounded-full" />
@@ -591,7 +591,7 @@ export function UploadPage() {
                                 <>
                                   <button
                                     onClick={() => handleDeleteBatch(b.id!)}
-                                    className="text-xs px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
+                                    className="text-xs px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium whitespace-nowrap"
                                   >
                                     Da, obriši
                                   </button>
@@ -604,7 +604,7 @@ export function UploadPage() {
                                 </>
                               ) : (
                                 <>
-                                  <Link to={`/imports/${b.id}`} className="p-tx hover:underline text-xs font-medium">
+                                  <Link to={`/imports/${b.id}`} className="p-tx hover:underline text-xs font-medium whitespace-nowrap">
                                     Detalji →
                                   </Link>
                                   <button

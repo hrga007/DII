@@ -59,15 +59,17 @@ export function LoginPage() {
   return (
     <div className="min-h-screen pg-bg flex flex-col">
 
-      {/* Vladino zaglavlje */}
+      {/* Zaglavlje */}
       <header className="hdr-bg shadow-sm" role="banner">
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-          <div className="bg-white rounded-lg px-3 py-1.5 flex items-center">
-            <img
-              src="/DII/logo-ministarstvo.png"
-              alt="Republika Hrvatska — Ministarstvo pravosuđa, uprave i digitalne transformacije"
-              className="h-8 w-auto"
-            />
+          <div className="flex items-center gap-2">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black"
+              style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: 'white' }}
+            >
+              DII
+            </div>
+            <span className="text-sm font-bold text-white">IT Ulaganja</span>
           </div>
           <ThemeSwitcher compact />
         </div>
