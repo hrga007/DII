@@ -204,7 +204,7 @@ export function UploadPage() {
   const [queue,    setQueue]    = useState<QueueItem[]>([])
   const [dragging, setDragging] = useState(false)
   const [batches,    setBatches]    = useState<ImportBatch[] | null>(null)
-  const [batchLoad,  setBatchLoad]  = useState(false)
+  const [batchLoad,  setBatchLoad]  = useState(true)
   const [confirmId,  setConfirmId]  = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -223,13 +223,10 @@ export function UploadPage() {
     }
   }
 
-  // Auto-load batch tab if opened via redirect
+  // Učitaj batcheve odmah pri mountu
   useEffect(() => {
-    if (tab === 'batches' && batches === null) {
-      setBatchLoad(true)
-      getBatches().then(setBatches).finally(() => setBatchLoad(false))
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    setBatchLoad(true)
+    getBatches().then(setBatches).finally(() => setBatchLoad(false))
   }, [])
 
   // ── Ažuriranje jednog elementa u redu ──────────────────────────
@@ -299,21 +296,50 @@ export function UploadPage() {
     if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files)
   }
 
-  // ── Učitaj batch-eve (lazy) ────────────────────────────────────
-  async function openBatchesTab() {
+  function openBatchesTab() {
     setTab('batches')
-    if (batches !== null) return   // već učitano
-    setBatchLoad(true)
-    try { setBatches(await getBatches()) }
-    finally { setBatchLoad(false) }
   }
 
-  const readyCount     = queue.filter(q => q.status === 'ready').length
-  const activeCount    = queue.filter(q => !['done'].includes(q.status)).length
-  const batchCount     = batches?.length ?? null
+  const readyCount  = queue.filter(q => q.status === 'ready').length
+  const activeCount = queue.filter(q => !['done'].includes(q.status)).length
+  const batchCount  = batches?.length ?? null
+
+  // Stats
+  const activeBatchInstitutions = batches
+    ? new Set(batches.filter(b => b.isActive).map(b => b.institutionId)).size
+    : null
+  const lastUpload = batches?.length
+    ? batches.reduce((a, b) => b.uploadedAt > a.uploadedAt ? b : a).uploadedAt
+    : null
+  const recentBatches = batches
+    ? [...batches].sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime()).slice(0, 5)
+    : []
 
   return (
     <div className="max-w-3xl mx-auto">
+
+      {/* ── Stats bar ──────────────────────────────────────────── */}
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        {[
+          {
+            label: 'Batch-evi ukupno',
+            value: batchLoad ? '…' : (batchCount ?? '–'),
+          },
+          {
+            label: 'Institucija s uvozom',
+            value: batchLoad ? '…' : (activeBatchInstitutions ?? '–'),
+          },
+          {
+            label: 'Zadnji uvoz',
+            value: batchLoad ? '…' : (lastUpload ? lastUpload.toLocaleDateString('hr-HR') : '–'),
+          },
+        ].map(({ label, value }) => (
+          <div key={label} className="bg-white rounded-2xl border border-gray-200 p-4">
+            <p className="text-xs text-gray-400 mb-1">{label}</p>
+            <p className="text-xl font-bold" style={{ color: 'var(--t1)' }}>{value}</p>
+          </div>
+        ))}
+      </div>
 
       {/* ── Tabovi ─────────────────────────────────────────────── */}
       <div className="flex gap-1 mb-5">
@@ -384,6 +410,35 @@ export function UploadPage() {
             <p className="text-sm text-gray-400 mt-1">ili klikni za odabir — možeš odabrati više datoteka odjednom</p>
             <p className="text-xs text-gray-400 mt-2 bg-gray-100 inline-block px-3 py-1 rounded-full">.xlsx · .xls</p>
           </div>
+
+          {/* Nedavno uvezeno — prikaži kad je red prazan */}
+          {queue.length === 0 && recentBatches.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 px-1">
+                Nedavno uvezeno
+              </p>
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                {recentBatches.map((b, i) => (
+                  <Link
+                    key={b.id}
+                    to={`/imports/${b.id}`}
+                    className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors ${
+                      i !== recentBatches.length - 1 ? 'border-b border-gray-50' : ''
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-700 truncate">{b.fileName}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {b.importSummary?.institutionName || '–'} · {b.uploadedAt.toLocaleDateString('hr-HR')}
+                      </p>
+                    </div>
+                    <StatusBadge status={b.processingStatus} />
+                    <span className="text-gray-300 text-sm shrink-0">›</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Red datoteka */}
           {queue.length > 0 && (

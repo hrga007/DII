@@ -54,19 +54,15 @@ export function Layout({ user, children }: Props) {
       <header className="hdr-bg text-white shadow-md sticky top-0 z-30" role="banner">
         <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-3">
 
-          {/* Logo institucije */}
-          <Link to="/" className="flex items-center gap-3 shrink-0" aria-label="Početna stranica — DII IT Ulaganja">
-            <div className="bg-white rounded-lg px-3 py-1.5 flex items-center">
-              <img
-                src="/DII/logo-ministarstvo.png"
-                alt="Republika Hrvatska — Ministarstvo pravosuđa, uprave i digitalne transformacije"
-                className="h-8 w-auto"
-              />
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="Početna stranica — DII IT Ulaganja">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
+              style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: 'white' }}
+            >
+              DII
             </div>
-            <div className="hidden sm:block border-l pl-3" style={{ borderColor: 'rgba(255,255,255,0.25)' }}>
-              <div className="text-xs font-semibold leading-tight" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                DII
-              </div>
+            <div className="hidden sm:block">
               <div className="text-sm font-bold leading-tight" style={{ color: 'white' }}>
                 IT Ulaganja
               </div>
