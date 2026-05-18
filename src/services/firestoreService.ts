@@ -33,6 +33,19 @@ type BatchLite = {
   institutionId?: string
   uploadedAt: Date
   isActive?: boolean
+  fileName?: string
+  importSummary?: { institutionName?: string }
+}
+
+function normalizeScope(v?: string): string {
+  return (v ?? '').trim().toLowerCase()
+}
+
+function batchScopeKey(batch: BatchLite): string {
+  const inst = normalizeScope(batch.institutionId)
+  const branch = normalizeScope(batch.importSummary?.institutionName)
+  const file = normalizeScope(batch.fileName)
+  return `${inst}::${branch || file}`
 }
 
 async function reconcileLegacyActiveBatches(): Promise<void> {
@@ -50,6 +63,8 @@ async function reconcileLegacyActiveBatches(): Promise<void> {
       institutionId: data.institutionId,
       uploadedAt: fromTimestamp(data.uploadedAt),
       isActive: data.isActive,
+      fileName: data.fileName,
+      importSummary: data.importSummary,
     })
     byInstitution.set(data.institutionId, arr)
   })
@@ -58,16 +73,25 @@ async function reconcileLegacyActiveBatches(): Promise<void> {
   let changes = 0
 
   byInstitution.forEach((batches) => {
-    const sorted = [...batches].sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime())
-    const currentlyActive = sorted.filter((b) => b.isActive === true)
+    const byScope = new Map<string, BatchLite[]>()
+    batches.forEach((b) => {
+      const k = batchScopeKey(b)
+      const arr = byScope.get(k) ?? []
+      arr.push(b)
+      byScope.set(k, arr)
+    })
 
-    const winner = currentlyActive[0] ?? sorted[0]
-    sorted.forEach((b) => {
-      const shouldBeActive = b.id === winner.id
-      if (b.isActive !== shouldBeActive) {
-        wb.update(doc(db, 'importBatches', b.id), { isActive: shouldBeActive })
-        changes += 1
-      }
+    byScope.forEach((scopeBatches) => {
+      const sorted = [...scopeBatches].sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime())
+      const currentlyActive = sorted.filter((b) => b.isActive === true)
+      const winner = currentlyActive[0] ?? sorted[0]
+      sorted.forEach((b) => {
+        const shouldBeActive = b.id === winner.id
+        if (b.isActive !== shouldBeActive) {
+          wb.update(doc(db, 'importBatches', b.id), { isActive: shouldBeActive })
+          changes += 1
+        }
+      })
     })
   })
 

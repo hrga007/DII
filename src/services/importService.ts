@@ -61,6 +61,17 @@ async function hashBuffer(buffer: ArrayBuffer): Promise<string> {
     .map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
+
+function normalizeScope(v: string | undefined): string {
+  return (v ?? '').trim().toLowerCase()
+}
+
+function sameBatchScope(a: ImportBatch, institutionName: string, fileName: string): boolean {
+  const aScope = normalizeScope(a.importSummary?.institutionName || a.fileName)
+  const bScope = normalizeScope(institutionName || fileName)
+  return aScope !== '' && bScope !== '' && aScope === bScope
+}
+
 function countDataRows(sheet: RawSheet): number {
   return sheet.slice(2).filter(row => row && String(row[0] ?? '').trim()).length
 }
@@ -212,7 +223,7 @@ export async function runImport(
     let supersededId: string | undefined
     if (institutionId) {
       const existing = await getBatchesByInstitution(institutionId)
-      const activeBatch = existing.find((b) => b.isActive && b.id !== batchId)
+      const activeBatch = existing.find((b) => b.isActive && b.id !== batchId && sameBatchScope(b, institutionName, file.name))
       if (activeBatch?.id) {
         supersededId = activeBatch.id
         await supersedeBatch(activeBatch.id, batchId, institutionId)
