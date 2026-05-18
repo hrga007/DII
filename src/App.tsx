@@ -56,7 +56,11 @@ export default function App() {
     <ToastProvider>
       <BrowserRouter basename="/DII/">
         <Routes>
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings" element={
+            user
+              ? <Layout user={user}><SettingsPage /></Layout>
+              : <SettingsPage />
+          } />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={
             <RequireAuth user={user}>
