@@ -66,10 +66,10 @@ function normalizeScope(v: string | undefined): string {
   return (v ?? '').trim().toLowerCase()
 }
 
-function sameBatchScope(a: ImportBatch, institutionName: string): boolean {
+function sameBatchScope(a: ImportBatch, institutionName: string, fileName: string): boolean {
   const aScope = normalizeScope(a.importSummary?.institutionName || a.fileName)
-  const bScope = normalizeScope(institutionName)
-  return aScope !== '' && aScope === bScope
+  const bScope = normalizeScope(institutionName || fileName)
+  return aScope !== '' && bScope !== '' && aScope === bScope
 }
 
 function countDataRows(sheet: RawSheet): number {
@@ -223,7 +223,7 @@ export async function runImport(
     let supersededId: string | undefined
     if (institutionId) {
       const existing = await getBatchesByInstitution(institutionId)
-      const activeBatch = existing.find((b) => b.isActive && b.id !== batchId && sameBatchScope(b, institutionName))
+      const activeBatch = existing.find((b) => b.isActive && b.id !== batchId && sameBatchScope(b, institutionName, file.name))
       if (activeBatch?.id) {
         supersededId = activeBatch.id
         await supersedeBatch(activeBatch.id, batchId, institutionId)
