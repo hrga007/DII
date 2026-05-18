@@ -125,7 +125,7 @@ export function ImportsPage() {
           </div>
 
           {/* Desktop prikaz: tablica */}
-          <div className="hidden sm:block bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          <div className="hidden sm:block bg-white rounded-2xl border border-gray-200 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -165,18 +165,18 @@ export function ImportsPage() {
                         ? <span className="text-yellow-600 font-medium">{b.warningCount}</span>
                         : <span className="text-gray-400">0</span>}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2">
                         {!b.isActive && b.institutionId && (
                           <button
                             onClick={() => handleActivate(b)}
                             disabled={activating === b.id}
-                            className="text-xs px-2.5 py-1 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                            className="text-xs px-2.5 py-1 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50 whitespace-nowrap"
                           >
                             {activating === b.id ? '...' : 'Postavi kao aktivan'}
                           </button>
                         )}
-                        <Link to={`/imports/${b.id}`} className="p-tx hover:underline text-xs font-medium">
+                        <Link to={`/imports/${b.id}`} className="p-tx hover:underline text-xs font-medium whitespace-nowrap">
                           Detalji →
                         </Link>
                       </div>
