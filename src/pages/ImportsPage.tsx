@@ -83,8 +83,14 @@ export function ImportsPage() {
                     <StatusBadge status={b.processingStatus} />
                   </div>
                 </div>
-                <p className="text-xs text-gray-500 mb-3">
+                <p className="text-xs text-gray-500 mb-1">
                   {b.importSummary?.institutionName || '–'} · {b.uploadedAt.toLocaleDateString('hr-HR')}
+                </p>
+                <p className="text-xs mb-3">
+                  {b.isActive
+                    ? <span className="text-emerald-600 font-medium">↑ Ulazi u izvješće</span>
+                    : <span className="text-gray-400">Ne ulazi u izvješće</span>
+                  }
                 </p>
                 <div className="flex flex-wrap gap-3 text-xs items-center">
                   {b.errorCount > 0 ? (
@@ -127,7 +133,7 @@ export function ImportsPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Institucija</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Datum</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Aktivan</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Izvješće</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Greške</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Upozorenja</th>
                   <th className="px-4 py-3" />
@@ -140,7 +146,15 @@ export function ImportsPage() {
                     <td className="px-4 py-3 text-gray-600">{b.importSummary?.institutionName || '–'}</td>
                     <td className="px-4 py-3 text-gray-500">{b.uploadedAt.toLocaleDateString('hr-HR')}</td>
                     <td className="px-4 py-3"><StatusBadge status={b.processingStatus} /></td>
-                    <td className="px-4 py-3"><ActiveBadge isActive={b.isActive} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-0.5">
+                        <ActiveBadge isActive={b.isActive} />
+                        {b.isActive
+                          ? <span className="text-xs text-emerald-600 font-medium">↑ ulazi u izvješće</span>
+                          : <span className="text-xs text-gray-400">ne ulazi u izvješće</span>
+                        }
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-right">
                       {b.errorCount > 0
                         ? <span className="text-red-600 font-medium">{b.errorCount}</span>

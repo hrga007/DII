@@ -330,11 +330,24 @@ export async function getFinancialEntries(batchId: string): Promise<FinancialEnt
 
 export async function getAllFinancialEntries(): Promise<FinancialEntry[]> {
   const db = getFirebaseDb()
-  const snap = await getDocs(collection(db, 'financialEntries'))
-  return snap.docs.map((d) => {
-    const data = d.data()
-    return { ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as FinancialEntry
-  })
+  // Dohvaćamo samo unose iz aktivnih batcheva — svaka institucija ima max jedan aktivan
+  const activeBatchesSnap = await getDocs(
+    query(collection(db, 'importBatches'), where('isActive', '==', true))
+  )
+  if (activeBatchesSnap.empty) return []
+  const activeBatchIds = activeBatchesSnap.docs.map((d) => d.id)
+  const results: FinancialEntry[] = []
+  const CHUNK = 10 // Firestore 'in' operator limit
+  for (let i = 0; i < activeBatchIds.length; i += CHUNK) {
+    const snap = await getDocs(
+      query(collection(db, 'financialEntries'), where('batchId', 'in', activeBatchIds.slice(i, i + CHUNK)))
+    )
+    snap.docs.forEach((d) => {
+      const data = d.data()
+      results.push({ ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as FinancialEntry)
+    })
+  }
+  return results
 }
 
 // ─── Import Issues ───────────────────────────────────────────────
@@ -401,8 +414,19 @@ export async function getInstalledResources(batchId: string): Promise<InstalledR
 
 export async function getFinancialEntriesByInstitution(institutionId: string): Promise<FinancialEntry[]> {
   const db = getFirebaseDb()
+  // Dohvaćamo samo unose iz aktivnog batcha — prikazuje se ono što ulazi u izvješće
+  const activeBatchSnap = await getDocs(
+    query(
+      collection(db, 'importBatches'),
+      where('institutionId', '==', institutionId),
+      where('isActive', '==', true),
+      limit(1)
+    )
+  )
+  if (activeBatchSnap.empty) return []
+  const activeBatchId = activeBatchSnap.docs[0].id
   const snap = await getDocs(
-    query(collection(db, 'financialEntries'), where('institutionId', '==', institutionId))
+    query(collection(db, 'financialEntries'), where('batchId', '==', activeBatchId))
   )
   return snap.docs.map((d) => {
     const data = d.data()

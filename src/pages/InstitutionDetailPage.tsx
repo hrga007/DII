@@ -602,14 +602,15 @@ export function InstitutionDetailPage() {
         {/* Quick stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">
           {[
-            { label: 'Batch-evi', value: batches.length },
-            { label: 'Financ. unosa', value: entries.length.toLocaleString('hr-HR') },
-            { label: 'Resursi', value: resources.length },
-            { label: 'Neriješene greške', value: issues.filter((i) => !i.resolvedAt && i.severity === 'error').length },
-          ].map(({ label, value }) => (
+            { label: 'Batch-evi', value: batches.length, sub: batches.find(b => b.isActive) ? '1 aktivan' : 'nema aktivnog' },
+            { label: 'Financ. unosa', value: entries.length.toLocaleString('hr-HR'), sub: 'iz aktivnog batcha' },
+            { label: 'Resursi', value: resources.length, sub: undefined },
+            { label: 'Neriješene greške', value: issues.filter((i) => !i.resolvedAt && i.severity === 'error').length, sub: undefined },
+          ].map(({ label, value, sub }) => (
             <div key={label}>
               <p className="text-xs text-gray-400">{label}</p>
               <p className="text-lg font-bold text-gray-800">{value}</p>
+              {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
             </div>
           ))}
         </div>
@@ -672,17 +673,20 @@ export function InstitutionDetailPage() {
       {/* Tab: Batch-evi */}
       {tab === 'batches' && (
         <div className="space-y-3">
-          {batches.length >= 2 && (
-            <div className="flex justify-end">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
+              Financijski pregled i izvješća koriste podatke isključivo iz <strong>aktivnog</strong> batcha.
+            </p>
+            {batches.length >= 2 && (
               <button
                 onClick={() => setDiffOpen(true)}
-                className="flex items-center gap-2 text-sm px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                className="flex items-center gap-2 text-sm px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors shrink-0"
               >
                 <span>⇄</span>
                 <span>Usporedi batcheve</span>
               </button>
-            </div>
-          )}
+            )}
+          </div>
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
           {batches.length === 0 ? (
             <p className="p-8 text-center text-gray-400">Nema batch-eva za ovu instituciju</p>
@@ -692,13 +696,17 @@ export function InstitutionDetailPage() {
                 <Link
                   key={b.id}
                   to={`/imports/${b.id}`}
-                  className="flex items-center gap-3 px-5 py-4 hover:bg-gray-50 transition-colors"
+                  className={`flex items-center gap-3 px-5 py-4 hover:bg-gray-50 transition-colors ${!b.isActive ? 'opacity-60' : ''}`}
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-700 truncate">{b.fileName}</p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {b.uploadedAt.toLocaleDateString('hr-HR')} · {(b.fileSize / 1024).toFixed(1)} KB
+                      {b.uploadedAt.toLocaleDateString('hr-HR')} · {(b.fileSize / 1024).toFixed(1)} KB ·{' '}
+                      {b.importSummary?.financialEntriesCount ?? 0} unosa
                     </p>
+                    {b.isActive && (
+                      <p className="text-xs text-emerald-600 font-medium mt-0.5">↑ Ulazi u financijski pregled i izvješća</p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <ActiveBadge isActive={b.isActive} />

@@ -325,12 +325,15 @@ export function ReportsPage() {
       </div>
 
       {/* Results summary */}
-      <div className="flex items-center gap-3 text-sm text-gray-500 mb-3 print:hidden">
+      <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 mb-3 print:hidden">
         <span>{sortedPivot.length} institucija</span>
         <span>·</span>
         <span>{filteredEntries.length} unosa</span>
         {year !== 'all' && <><span>·</span><span>Godina: {year}</span></>}
         {instFilter && <><span>·</span><span className="text-blue-600">{institutions.find(i => i.id === instFilter)?.name}</span></>}
+        <span className="ml-auto text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1">
+          Prikazuju se podaci iz aktivnih batcheva
+        </span>
       </div>
 
       {/* Print header (only visible in print) */}

@@ -5,12 +5,13 @@ import { getInstitutions } from '../services/firestoreService'
 import { getBatches } from '../services/firestoreService'
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
-import { StatusBadge } from '../components/StatusBadge'
+import { StatusBadge, ActiveBadge } from '../components/StatusBadge'
 
 interface InstitutionRow {
   institution: Institution
   batches: ImportBatch[]
-  totalEntries: number
+  activeBatch: ImportBatch | null
+  activeEntries: number
   lastUpload: Date | null
 }
 
@@ -25,12 +26,14 @@ export function InstitutionsPage() {
     Promise.all([getInstitutions(), getBatches()]).then(([institutions, batches]) => {
       const mapped: InstitutionRow[] = institutions.map((inst) => {
         const ibs = batches.filter((b) => b.institutionId === inst.id)
-        const totalEntries = ibs.reduce((s, b) => s + (b.importSummary?.financialEntriesCount ?? 0), 0)
+        const activeBatch = ibs.find((b) => b.isActive) ?? null
+        const activeEntries = activeBatch ? (activeBatch.importSummary?.financialEntriesCount ?? 0) : 0
         const dates = ibs.map((b) => b.uploadedAt.getTime())
         return {
           institution: inst,
           batches: ibs,
-          totalEntries,
+          activeBatch,
+          activeEntries,
           lastUpload: dates.length ? new Date(Math.max(...dates)) : null,
         }
       })
@@ -75,13 +78,14 @@ export function InstitutionsPage() {
       {/* Summary stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
         {[
-          { label: 'Institucije', value: rows.length, icon: '🏛️' },
-          { label: 'Batch-evi ukupno', value: rows.reduce((s, r) => s + r.batches.length, 0), icon: '📦' },
-          { label: 'Financ. unosa', value: rows.reduce((s, r) => s + r.totalEntries, 0).toLocaleString('hr-HR'), icon: '📊' },
-        ].map(({ label, value, icon }) => (
+          { label: 'Institucije', value: rows.length, icon: '🏛️', sub: undefined },
+          { label: 'Batch-evi ukupno', value: rows.reduce((s, r) => s + r.batches.length, 0), icon: '📦', sub: `${rows.filter((r) => r.activeBatch !== null).length} s aktivnim` },
+          { label: 'Financ. unosa', value: rows.reduce((s, r) => s + r.activeEntries, 0).toLocaleString('hr-HR'), icon: '📊', sub: 'iz aktivnih batcheva' },
+        ].map(({ label, value, icon, sub }) => (
           <div key={label} className="bg-white rounded-2xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">{icon} {label}</p>
             <p className="text-xl font-bold text-gray-800">{value}</p>
+            {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
           </div>
         ))}
       </div>
@@ -127,14 +131,22 @@ export function InstitutionsPage() {
                   <div className="hidden sm:flex items-center gap-4 text-sm text-gray-500 mr-2">
                     <span title="Batch-evi">
                       <span className="font-semibold text-gray-700">{row.batches.length}</span>
-                      <span className="text-xs ml-1">batch-eva</span>
+                      <span className="text-xs ml-1">
+                        {row.batches.length === 1 ? 'batch' : 'batch-eva'}
+                        {row.batches.length > 1 && (
+                          <span className="ml-1 text-amber-600">({row.batches.filter(b => b.isActive).length} aktivan)</span>
+                        )}
+                      </span>
                     </span>
-                    <span title="Financijski unosi">
+                    <span title="Financijski unosi iz aktivnog batcha">
                       <span className={`font-semibold ${hasErrors ? 'text-red-600' : 'text-gray-700'}`}>
-                        {row.totalEntries}
+                        {row.activeEntries}
                       </span>
                       <span className="text-xs ml-1">unosa</span>
                     </span>
+                    {!row.activeBatch && row.batches.length > 0 && (
+                      <span className="text-xs text-amber-600 font-medium">Nema aktivnog!</span>
+                    )}
                     {row.lastUpload && (
                       <span className="text-xs text-gray-400">
                         {row.lastUpload.toLocaleDateString('hr-HR')}
@@ -145,6 +157,9 @@ export function InstitutionsPage() {
                   {/* Mobile stats */}
                   <div className="sm:hidden flex flex-col items-end text-xs text-gray-500 mr-1">
                     <span>{row.batches.length} batch-eva</span>
+                    {!row.activeBatch && row.batches.length > 0 && (
+                      <span className="text-amber-600 font-medium">Nema aktivnog!</span>
+                    )}
                     {row.lastUpload && (
                       <span className="text-gray-400">{row.lastUpload.toLocaleDateString('hr-HR')}</span>
                     )}
@@ -182,23 +197,35 @@ export function InstitutionsPage() {
                         )}
 
                         {/* Batch list */}
+                        {row.batches.length > 1 && (
+                          <div className="px-5 py-2 bg-amber-50 border-b border-amber-100 text-xs text-amber-700">
+                            Institucija ima {row.batches.length} batcha. U izvješće ulaze samo podaci iz <strong>aktivnog</strong> batcha.
+                          </div>
+                        )}
                         <div className="divide-y divide-gray-50">
                           {row.batches.map((b) => (
                             <Link
                               key={b.id}
                               to={`/imports/${b.id}`}
-                              className="flex items-center gap-3 px-5 py-3 transition-colors group hover:bg-gray-50"
+                              className={`flex items-center gap-3 px-5 py-3 transition-colors group hover:bg-gray-50 ${!b.isActive ? 'opacity-60' : ''}`}
                             >
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-700 truncate" style={{ transition: 'color 0.15s' }}
-                                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--p-tx)')}
-                                  onMouseLeave={e => (e.currentTarget.style.color = '')}
-                                >
-                                  {b.fileName}
-                                </p>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-sm font-medium text-gray-700 truncate" style={{ transition: 'color 0.15s' }}
+                                    onMouseEnter={e => (e.currentTarget.style.color = 'var(--p-tx)')}
+                                    onMouseLeave={e => (e.currentTarget.style.color = '')}
+                                  >
+                                    {b.fileName}
+                                  </p>
+                                  <ActiveBadge isActive={b.isActive} />
+                                  {b.isActive && (
+                                    <span className="text-xs text-emerald-700 font-medium">↑ ulazi u izvješće</span>
+                                  )}
+                                </div>
                                 <p className="text-xs text-gray-400 mt-0.5">
                                   {b.uploadedAt.toLocaleDateString('hr-HR')} ·{' '}
-                                  {(b.fileSize / 1024).toFixed(1)} KB
+                                  {(b.fileSize / 1024).toFixed(1)} KB ·{' '}
+                                  {b.importSummary?.financialEntriesCount ?? 0} unosa
                                 </p>
                               </div>
                               <div className="flex items-center gap-3 shrink-0">
@@ -209,9 +236,6 @@ export function InstitutionsPage() {
                                   {b.warningCount > 0 && (
                                     <span className="text-yellow-600">{b.warningCount} upoz.</span>
                                   )}
-                                  <span className="text-gray-400">
-                                    {b.importSummary?.financialEntriesCount ?? 0} unosa
-                                  </span>
                                 </div>
                                 <StatusBadge status={b.processingStatus} />
                                 <span className="text-gray-300 p-tx" style={{ opacity: 0.5 }}>›</span>
