@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getInstitutions } from '../services/firestoreService'
 import { getBatches } from '../services/firestoreService'
@@ -17,10 +17,14 @@ interface InstitutionRow {
 
 export function InstitutionsPage() {
   usePageTitle('Institucije')
+  const location = useLocation()
   const [rows, setRows] = useState<InstitutionRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<string | null>(
+    (location.state as { expandId?: string } | null)?.expandId ?? null
+  )
   const [search, setSearch] = useState('')
+  const expandedRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     Promise.all([getInstitutions(), getBatches()]).then(([institutions, batches]) => {
@@ -45,6 +49,12 @@ export function InstitutionsPage() {
       setRows(mapped)
     }).finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (expanded && expandedRef.current) {
+      expandedRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [expanded, rows])
 
   const filtered = rows.filter((r) =>
     r.institution.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -104,7 +114,7 @@ export function InstitutionsPage() {
             const hasErrors = row.batches.some((b) => b.errorCount > 0)
 
             return (
-              <div key={id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div key={id} ref={isOpen ? expandedRef : null} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 {/* Institution header row */}
                 <div className="flex items-center gap-3 p-4 sm:p-5 hover:bg-gray-50 transition-colors">
                   {/* Icon — links to InstitutionDetailPage */}
@@ -207,6 +217,7 @@ export function InstitutionsPage() {
                             <Link
                               key={b.id}
                               to={`/imports/${b.id}`}
+                              state={{ from: 'institucije', institutionId: id }}
                               className={`flex items-center gap-3 px-5 py-3 transition-colors group hover:bg-gray-50 ${!b.isActive ? 'opacity-60' : ''}`}
                             >
                               <div className="flex-1 min-w-0">

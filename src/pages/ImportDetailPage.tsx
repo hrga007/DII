@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
   getBatch,
@@ -403,6 +403,8 @@ export function ImportDetailPage() {
   usePageTitle('Detalji uvoza')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  const navState = location.state as { from?: string; institutionId?: string } | null
   const [batch, setBatch] = useState<ImportBatch | null>(null)
   const [entries, setEntries] = useState<FinancialEntry[]>([])
   const [issues, setIssues] = useState<ImportIssue[]>([])
@@ -482,9 +484,19 @@ export function ImportDetailPage() {
 
   return (
     <div>
-      <Link to="/imports" className="inline-flex items-center gap-1 text-sm p-tx hover:underline mb-4">
-        ← Batch-evi
-      </Link>
+      {navState?.from === 'institucije' ? (
+        <Link
+          to="/institutions"
+          state={{ expandId: navState.institutionId }}
+          className="inline-flex items-center gap-1 text-sm p-tx hover:underline mb-4"
+        >
+          ← Natrag na institucije
+        </Link>
+      ) : (
+        <Link to="/imports" className="inline-flex items-center gap-1 text-sm p-tx hover:underline mb-4">
+          ← Batch-evi
+        </Link>
+      )}
 
       {/* ── Panel: Poveži instituciju ── */}
       {!batch.institutionId && (
