@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getProvider } from '../providers'
-import { useAuth } from '../hooks/useAuth'
 import type { AuditLog, AuditAction } from '../models/auditLog'
 
 const ACTION_LABELS: Record<AuditAction, string> = {
@@ -34,13 +33,12 @@ function relativeTime(date: Date): string {
 
 export function AuditPage() {
   usePageTitle('Audit log')
-  const { user } = useAuth()
   const [actionFilter, setActionFilter] = useState<AuditAction | 'all'>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [page, setPage] = useState(0)
 
-  const { data: logs = [], isLoading } = useQuery({
+  const { data: logs = [], isLoading } = useQuery<AuditLog[]>({
     queryKey: ['auditLogs'],
     queryFn: () => getProvider().getAuditLogs(200),
   })
@@ -73,19 +71,6 @@ export function AuditPage() {
   const uniqueActions = useMemo(() => {
     return [...new Set(logs.map((l: AuditLog) => l.action))] as AuditAction[]
   }, [logs])
-
-  // Only admin can see this page
-  const isAdmin = (user as { role?: string } | null)?.role === 'admin'
-
-  if (!isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4 p-8">
-        <div className="text-5xl">🔒</div>
-        <h2 className="text-lg font-semibold text-gray-800">Pristup zabranjen</h2>
-        <p className="text-sm text-gray-500">Ova stranica je dostupna samo administratorima.</p>
-      </div>
-    )
-  }
 
   return (
     <div>

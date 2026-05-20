@@ -7,6 +7,7 @@ import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
 import type { InstalledResource } from '../models/installedResource'
 import type { CategoryGroup } from '../models/financialEntry'
+import type { AuditLog, AuditAction } from '../models/auditLog'
 import { StatusBadge, ActiveBadge, SeverityBadge } from '../components/StatusBadge'
 
 const CATEGORIES: CategoryGroup[] = ['CAPEX', 'LICENCE', 'ODRZAVANJE', 'OPEX', 'CLOUD']
@@ -19,7 +20,34 @@ const CAT_LABELS: Record<CategoryGroup, string> = {
 }
 const YEARS = [2024, 2025, 2026, 2027, 2028]
 
-type Tab = 'financije' | 'batches' | 'resursi' | 'greske'
+type Tab = 'financije' | 'batches' | 'resursi' | 'greske' | 'aktivnost'
+
+const ACTIVITY_ACTION_LABELS: Record<AuditAction, string> = {
+  login:            'Prijava',
+  logout:           'Odjava',
+  upload:           'Upload datoteke',
+  import_complete:  'Import završen',
+  import_failed:    'Import neuspješan',
+  delete_batch:     'Brisanje batcha',
+  set_active_batch: 'Postavljanje aktivnog batcha',
+  supersede_batch:  'Zamjena batcha',
+  manual_correction:'Ručna korekcija',
+  link_institution: 'Povezivanje institucije',
+  bulk_normalize:   'Skupna normalizacija',
+  reupload:         'Ponovna dostava',
+}
+
+function relativeTime(date: Date): string {
+  const diff = Date.now() - date.getTime()
+  const mins  = Math.floor(diff / 60_000)
+  const hours = Math.floor(diff / 3_600_000)
+  const days  = Math.floor(diff / 86_400_000)
+  if (mins  <  1) return 'upravo'
+  if (mins  < 60) return `${mins} min`
+  if (hours < 24) return `${hours} h`
+  if (days  <  7) return `${days} d`
+  return date.toLocaleDateString('hr-HR')
+}
 
 // Simple SVG bar chart: realizirano (green) vs planirano (blue) per category
 function BarChart({ entries }: { entries: FinancialEntry[] }) {
@@ -481,6 +509,8 @@ export function InstitutionDetailPage() {
   const [tab, setTab] = useState<Tab>('financije')
   const [issueFilter, setIssueFilter] = useState<'sve' | 'nerijesene' | 'rijesene'>('sve')
   const [diffOpen, setDiffOpen] = useState(false)
+  const [activityLogs, setActivityLogs] = useState<AuditLog[]>([])
+  const [activityLoading, setActivityLoading] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -517,6 +547,21 @@ export function InstitutionDetailPage() {
       .catch((err) => setLoadError(err?.message ?? 'Greška pri učitavanju'))
       .finally(() => setLoading(false))
   }, [id])
+
+  useEffect(() => {
+    if (tab !== 'aktivnost' || !id || activityLogs.length > 0) return
+    setActivityLoading(true)
+    getProvider().getAuditLogs(300)
+      .then(all => {
+        const batchIds = new Set(batches.map(b => b.id).filter(Boolean) as string[])
+        setActivityLogs(all.filter(l =>
+          l.entityId === id ||
+          (l.entityType === 'importBatch' && batchIds.has(l.entityId)) ||
+          (l.details as Record<string, unknown>)?.institutionId === id
+        ))
+      })
+      .finally(() => setActivityLoading(false))
+  }, [tab, id, batches, activityLogs.length])
 
   if (loading) {
     return (
@@ -815,6 +860,67 @@ export function InstitutionDetailPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Tab: Aktivnost */}
+      {tab === 'aktivnost' && (
+        <div>
+          {activityLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+            </div>
+          ) : activityLogs.length === 0 ? (
+            <div className="py-16 text-center text-gray-400">
+              <p className="text-3xl mb-2">📋</p>
+              <p className="text-sm">Nema zabilježene aktivnosti za ovu instituciju</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {activityLogs.map((log) => (
+                <div
+                  key={log.id ?? `${log.entityId}-${log.timestamp.getTime()}`}
+                  className="flex items-start gap-4 px-4 py-3 bg-white rounded-xl border border-gray-100 hover:border-gray-200 transition-colors"
+                >
+                  <div className="w-16 shrink-0 text-right">
+                    <span className="text-xs text-gray-400" title={log.timestamp.toLocaleString('hr-HR')}>
+                      {relativeTime(log.timestamp)}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-700">
+                      {ACTIVITY_ACTION_LABELS[log.action] ?? log.action}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {log.timestamp.toLocaleString('hr-HR', { dateStyle: 'short', timeStyle: 'short' })}
+                      {' · '}
+                      {log.entityType}
+                      {log.entityId && log.entityType === 'importBatch' && (
+                        <>
+                          {' · '}
+                          <Link
+                            to={`/imports/${log.entityId}`}
+                            className="text-blue-600 hover:underline font-mono"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {log.entityId.slice(0, 8)}…
+                          </Link>
+                        </>
+                      )}
+                    </p>
+                    {Object.keys(log.details ?? {}).length > 0 && (
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">
+                        {Object.entries(log.details)
+                          .filter(([, v]) => typeof v !== 'object')
+                          .map(([k, v]) => `${k}: ${v}`)
+                          .join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
