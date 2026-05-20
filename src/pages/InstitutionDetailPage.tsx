@@ -504,6 +504,8 @@ export function InstitutionDetailPage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('financije')
+  const [resDcFilter, setResDcFilter] = useState('')
+  const [resNameFilter, setResNameFilter] = useState('')
   const [issueFilter, setIssueFilter] = useState<'sve' | 'nerijesene' | 'rijesene'>('sve')
   const [diffOpen, setDiffOpen] = useState(false)
   const [activityLogs, setActivityLogs] = useState<AuditLog[]>([])
@@ -765,37 +767,92 @@ export function InstitutionDetailPage() {
       )}
 
       {/* Tab: Resursi */}
-      {tab === 'resursi' && (
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-          {resources.length === 0 ? (
-            <p className="p-8 text-center text-gray-400">Nema resursa za ovu instituciju</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {['Data centar', 'Resurs', 'Jed.', 'Instalirano', 'Ukupno', 'Napomena'].map((h) => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {resources.map((r) => (
-                    <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{r.dataCenterName || '—'}</td>
-                      <td className="px-4 py-3 text-gray-700">{r.resourceName}</td>
-                      <td className="px-4 py-3 text-gray-500">{r.unit}</td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-800">{r.installedValue}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{r.totalCapacity}</td>
-                      <td className="px-4 py-3 text-gray-400 text-xs max-w-xs truncate">{r.note || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {tab === 'resursi' && (() => {
+        const dcNames = [...new Set(resources.map((r) => r.dataCenterName).filter(Boolean))]
+        const filtered = resources.filter((r) =>
+          (!resDcFilter || r.dataCenterName === resDcFilter) &&
+          (!resNameFilter || r.resourceName.toLowerCase().includes(resNameFilter.toLowerCase()))
+        )
+        const utilPct = (r: InstalledResource) => {
+          const inst = Number(r.installedValue)
+          const cap  = Number(r.totalCapacity)
+          return cap > 0 && inst >= 0 ? Math.min(100, Math.round((inst / cap) * 100)) : null
+        }
+        return (
+          <div>
+            {resources.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                <select
+                  value={resDcFilter}
+                  onChange={(e) => setResDcFilter(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Svi data centri ({dcNames.length})</option>
+                  {dcNames.map((dc) => <option key={dc} value={dc}>{dc}</option>)}
+                </select>
+                <input
+                  type="text"
+                  placeholder="Pretraži resurs..."
+                  value={resNameFilter}
+                  onChange={(e) => setResNameFilter(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 w-44"
+                />
+                {(resDcFilter || resNameFilter) && (
+                  <button onClick={() => { setResDcFilter(''); setResNameFilter('') }} className="text-xs text-blue-600 hover:underline">
+                    × Očisti
+                  </button>
+                )}
+                <span className="text-xs text-gray-400 self-center ml-auto">{filtered.length} resursa</span>
+              </div>
+            )}
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              {filtered.length === 0 ? (
+                <p className="p-8 text-center text-gray-400">Nema resursa{resDcFilter || resNameFilter ? ' za odabrani filter' : ' za ovu instituciju'}</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {['Data centar', 'Resurs', 'Jed.', 'Instalirano', 'Ukupno', 'Iskorištenost', 'Napomena'].map((h) => (
+                          <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filtered.map((r) => {
+                        const pct = utilPct(r)
+                        return (
+                          <tr key={r.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{r.dataCenterName || '—'}</td>
+                            <td className="px-4 py-3 text-gray-700">{r.resourceName}</td>
+                            <td className="px-4 py-3 text-gray-500">{r.unit}</td>
+                            <td className="px-4 py-3 text-right font-medium text-gray-800">{String(r.installedValue) || '—'}</td>
+                            <td className="px-4 py-3 text-right text-gray-600">{String(r.totalCapacity) || '—'}</td>
+                            <td className="px-4 py-3">
+                              {pct !== null ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden w-20">
+                                    <div
+                                      className={`h-full rounded-full ${pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-yellow-500' : 'bg-emerald-500'}`}
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-gray-500">{pct}%</span>
+                                </div>
+                              ) : <span className="text-gray-300 text-xs">—</span>}
+                            </td>
+                            <td className="px-4 py-3 text-gray-400 text-xs max-w-xs truncate">{r.note || '—'}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )
+      })()}
 
       {/* Tab: Greške i upozorenja */}
       {tab === 'greske' && (

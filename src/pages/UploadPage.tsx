@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, type DragEvent } from 'react'
+import { useState, useRef, useCallback, useMemo, type DragEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -7,6 +7,7 @@ import {
   type FilePreview, type ImportProgress, type ImportResult,
 } from '../services/importService'
 import { getProvider } from '../providers'
+import { currentUser } from '../services/authService'
 import { useToast } from '../hooks/useToast'
 import { StatusBadge } from '../components/StatusBadge'
 import type { ImportBatch } from '../models/importBatch'
@@ -206,6 +207,8 @@ export function UploadPage() {
   const [dragging, setDragging] = useState(false)
   const [confirmId,  setConfirmId]  = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [supersedePick, setSupersedePick] = useState<{ newId: string; institutionId: string } | null>(null)
+  const [supersedingId, setSupersedingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const { showToast } = useToast()
   const queryClient = useQueryClient()
@@ -226,6 +229,43 @@ export function UploadPage() {
       showToast('Greška pri brisanju batcha', 'error')
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  const batchesByInstitution = useMemo(() => {
+    const map = new Map<string, typeof batches extends null ? never[] : NonNullable<typeof batches>>()
+    if (!batches) return map
+    for (const b of batches) {
+      if (!b.institutionId) continue
+      const arr = map.get(b.institutionId) ?? []
+      arr.push(b)
+      map.set(b.institutionId, arr)
+    }
+    return map
+  }, [batches])
+
+  async function handleSupersede(oldBatchId: string, newBatchId: string, institutionId: string) {
+    setSupersedingId(newBatchId)
+    setSupersedePick(null)
+    try {
+      await getProvider().supersedeBatch(oldBatchId, newBatchId, institutionId)
+      const user = currentUser()
+      if (user) {
+        await getProvider().addAuditLog({
+          userId: user.uid,
+          action: 'supersede_batch',
+          entityType: 'importBatch',
+          entityId: newBatchId,
+          timestamp: new Date(),
+          details: { supersededBatchId: oldBatchId, institutionId },
+        })
+      }
+      await queryClient.invalidateQueries({ queryKey: ['batches'] })
+      showToast('Batch postavljen kao zamjena', 'success')
+    } catch {
+      showToast('Greška pri postavljanju zamjene', 'error')
+    } finally {
+      setSupersedingId(null)
     }
   }
 
@@ -604,6 +644,17 @@ export function UploadPage() {
                                 </>
                               ) : (
                                 <>
+                                  {supersedingId === b.id ? (
+                                    <span className="animate-spin h-4 w-4 border-2 border-blue-400 border-t-transparent rounded-full" />
+                                  ) : b.institutionId && !b.isActive && b.processingStatus === 'completed' &&
+                                    (batchesByInstitution.get(b.institutionId) ?? []).some((x) => x.isActive) && (
+                                    <button
+                                      onClick={() => setSupersedePick({ newId: b.id!, institutionId: b.institutionId! })}
+                                      className="text-xs px-2.5 py-1.5 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors whitespace-nowrap"
+                                    >
+                                      Zamijeni aktivan
+                                    </button>
+                                  )}
                                   <Link to={`/imports/${b.id}`} className="p-tx hover:underline text-xs font-medium whitespace-nowrap">
                                     Detalji →
                                   </Link>
@@ -628,6 +679,54 @@ export function UploadPage() {
           )}
         </>
       )}
+
+      {/* Modal: odabir batcha koji se zamjenjuje */}
+      {supersedePick && (() => {
+        const candidates = (batchesByInstitution.get(supersedePick.institutionId) ?? [])
+          .filter((x) => x.isActive || x.processingStatus === 'completed')
+          .filter((x) => x.id !== supersedePick.newId)
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+            onClick={(e) => { if (e.target === e.currentTarget) setSupersedePick(null) }}
+          >
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                <p className="font-semibold text-gray-800">Koji batch zamjenjujemo?</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Odabrani batch bit će označen kao supersediran i neće više ulaziti u izvješća.
+                </p>
+              </div>
+              <div className="p-4 space-y-2 max-h-72 overflow-y-auto">
+                {candidates.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-4">Nema kandidata za zamjenu</p>
+                ) : candidates.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => handleSupersede(c.id!, supersedePick.newId, supersedePick.institutionId)}
+                    className="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                  >
+                    <p className="text-sm font-medium text-gray-800">{c.fileName}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {c.uploadedAt.toLocaleDateString('hr-HR')} ·{' '}
+                      {c.isActive ? <span className="text-emerald-600 font-medium">aktivan</span> : c.processingStatus}
+                    </p>
+                  </button>
+                ))}
+              </div>
+              <div className="px-6 py-3 border-t border-gray-100 flex justify-end">
+                <button
+                  onClick={() => setSupersedePick(null)}
+                  className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                >
+                  Odustani
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
