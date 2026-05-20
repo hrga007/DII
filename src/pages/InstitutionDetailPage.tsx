@@ -551,7 +551,7 @@ export function InstitutionDetailPage() {
 
   const TABS: { key: Tab; label: string; count?: number }[] = [
     { key: 'financije', label: 'Financijski pregled' },
-    { key: 'batches', label: 'Batch-evi', count: batches.length },
+    { key: 'batches', label: 'Povijest aktivnosti', count: batches.length },
     { key: 'resursi', label: 'Resursi', count: resources.length },
     { key: 'greske', label: 'Greške i upozorenja', count: issues.filter((i) => !i.resolvedAt).length || undefined },
   ]

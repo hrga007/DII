@@ -16,6 +16,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { InstitutionsPage } from './pages/InstitutionsPage'
 import { InstitutionDetailPage } from './pages/InstitutionDetailPage'
 import { ReportsPage } from './pages/ReportsPage'
+import { AuditPage } from './pages/AuditPage'
 
 function RequireAuth({ user, children }: { user: User | null; children: React.ReactNode }) {
   if (!isInitialized()) return <Navigate to="/settings" replace />
@@ -92,6 +93,11 @@ export default function App() {
           <Route path="/izvjestaji" element={
             <RequireAuth user={user}>
               <Layout user={user!}><ErrorBoundary><ReportsPage /></ErrorBoundary></Layout>
+            </RequireAuth>
+          } />
+          <Route path="/audit" element={
+            <RequireAuth user={user}>
+              <Layout user={user!}><ErrorBoundary><AuditPage /></ErrorBoundary></Layout>
             </RequireAuth>
           } />
           <Route path="*" element={<Navigate to="/" replace />} />
