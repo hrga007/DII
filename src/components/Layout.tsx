@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { logout } from '../services/authService'
 import { useToast } from '../hooks/useToast'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { Footer } from './Footer'
 import type { User } from 'firebase/auth'
+import { listUsers } from '../services/userService'
 
 interface Props {
   user: User
@@ -16,6 +17,7 @@ const NAV = [
   { to: '/upload',       label: 'Uvoz podataka' },
   { to: '/institutions', label: 'Institucije' },
   { to: '/izvjestaji',   label: 'Izvještaji' },
+  { to: '/audit',        label: 'Audit log' },
   { to: '/settings',     label: 'Postavke' },
 ]
 
@@ -24,6 +26,14 @@ export function Layout({ user, children }: Props) {
   const navigate  = useNavigate()
   const { showToast } = useToast()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    listUsers().then(users => {
+      const profile = users.find(u => u.uid === user.uid)
+      setIsAdmin(profile?.role === 'admin')
+    }).catch(() => { /* ignore — if can't fetch users, no admin links */ })
+  }, [user.uid])
 
   async function handleLogout() {
     setMenuOpen(false)
@@ -84,6 +94,18 @@ export function Layout({ user, children }: Props) {
                 {label}
               </Link>
             ))}
+            {isAdmin && (
+              <Link
+                to="/audit"
+                aria-current={isActive('/audit') ? 'page' : undefined}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive('/audit') ? 'act-bg act-tx' : 'hover:bg-white/10'
+                }`}
+                style={isActive('/audit') ? {} : { color: 'rgba(255,255,255,0.8)' }}
+              >
+                Audit
+              </Link>
+            )}
           </nav>
 
           {/* Desktop desno: dark/light toggle + korisnik */}
@@ -162,6 +184,23 @@ export function Layout({ user, children }: Props) {
                   {label}
                 </Link>
               ))}
+              {isAdmin && (
+                <Link
+                  to="/audit"
+                  onClick={() => setMenuOpen(false)}
+                  aria-current={isActive('/audit') ? 'page' : undefined}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors"
+                  style={
+                    isActive('/audit')
+                      ? { backgroundColor: 'var(--p-lt)', color: 'var(--p-tx)' }
+                      : { color: 'var(--t2)' }
+                  }
+                  onMouseEnter={e => { if (!isActive('/audit')) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--s-rz)' }}
+                  onMouseLeave={e => { if (!isActive('/audit')) (e.currentTarget as HTMLElement).style.backgroundColor = '' }}
+                >
+                  Audit
+                </Link>
+              )}
             </nav>
 
             {/* Dark/light toggle */}

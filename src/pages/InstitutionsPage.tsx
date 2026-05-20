@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { getInstitutions } from '../services/firestoreService'
-import { getBatches } from '../services/firestoreService'
+import { getProvider } from '../providers'
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
 import { StatusBadge, ActiveBadge } from '../components/StatusBadge'
@@ -18,37 +18,42 @@ interface InstitutionRow {
 export function InstitutionsPage() {
   usePageTitle('Institucije')
   const location = useLocation()
-  const [rows, setRows] = useState<InstitutionRow[]>([])
-  const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(
     (location.state as { expandId?: string } | null)?.expandId ?? null
   )
   const [search, setSearch] = useState('')
   const expandedRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => {
-    Promise.all([getInstitutions(), getBatches()]).then(([institutions, batches]) => {
-      const mapped: InstitutionRow[] = institutions.map((inst) => {
-        const ibs = batches.filter((b) => b.institutionId === inst.id)
-        const activeBatch = ibs.find((b) => b.isActive) ?? null
-        const activeEntries = activeBatch ? (activeBatch.importSummary?.financialEntriesCount ?? 0) : 0
-        const dates = ibs.map((b) => b.uploadedAt.getTime())
-        return {
-          institution: inst,
-          batches: ibs,
-          activeBatch,
-          activeEntries,
-          lastUpload: dates.length ? new Date(Math.max(...dates)) : null,
-        }
-      })
-      // Sort: institutions with batches first, then by name
-      mapped.sort((a, b) => {
-        if (b.batches.length !== a.batches.length) return b.batches.length - a.batches.length
-        return a.institution.name.localeCompare(b.institution.name, 'hr')
-      })
-      setRows(mapped)
-    }).finally(() => setLoading(false))
-  }, [])
+  const { data: institutions = [], isLoading: instLoading } = useQuery({
+    queryKey: ['institutions'],
+    queryFn: () => getProvider().getInstitutions(),
+  })
+  const { data: batches = [], isLoading: batchLoading } = useQuery({
+    queryKey: ['batches'],
+    queryFn: () => getProvider().getBatches(),
+  })
+  const loading = instLoading || batchLoading
+
+  const rows = useMemo(() => {
+    const mapped: InstitutionRow[] = institutions.map((inst) => {
+      const ibs = batches.filter((b) => b.institutionId === inst.id)
+      const activeBatch = ibs.find((b) => b.isActive) ?? null
+      const activeEntries = activeBatch ? (activeBatch.importSummary?.financialEntriesCount ?? 0) : 0
+      const dates = ibs.map((b) => b.uploadedAt.getTime())
+      return {
+        institution: inst,
+        batches: ibs,
+        activeBatch,
+        activeEntries,
+        lastUpload: dates.length ? new Date(Math.max(...dates)) : null,
+      }
+    })
+    mapped.sort((a, b) => {
+      if (b.batches.length !== a.batches.length) return b.batches.length - a.batches.length
+      return a.institution.name.localeCompare(b.institution.name, 'hr')
+    })
+    return mapped
+  }, [institutions, batches])
 
   useEffect(() => {
     if (expanded && expandedRef.current) {

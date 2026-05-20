@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { getBatches, getAllFinancialEntries, getAllImportIssues, resolveIssue, addAuditLog } from '../services/firestoreService'
+import { getProvider } from '../providers'
 import type { ImportBatch } from '../models/importBatch'
-import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
+import type { ImportIssue } from '../models/financialEntry'
 import { StatCard } from '../components/StatCard'
 import { SeverityBadge } from '../components/StatusBadge'
 import { getAppSettings } from '../hooks/useAppSettings'
@@ -49,7 +50,7 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
   const [saving,      setSaving]      = useState(false)
 
   useEffect(() => {
-    getAllImportIssues(mode)
+    getProvider().getAllImportIssues(mode)
       .then(setIssues)
       .finally(() => setLoading(false))
   }, [mode])
@@ -81,8 +82,8 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
     try {
       const user = currentUser()
       if (!user || !iss.id) return
-      await resolveIssue(iss.id, user.uid, 'MANUAL_EDIT', editValue.trim(), editNote.trim() || undefined)
-      await addAuditLog({
+      await getProvider().resolveIssue(iss.id, user.uid, 'MANUAL_EDIT', editValue.trim(), editNote.trim() || undefined)
+      await getProvider().addAuditLog({
         userId: user.uid,
         action: 'manual_correction',
         entityType: 'importIssue',
@@ -365,18 +366,19 @@ export function DashboardPage() {
   usePageTitle('Pregled')
   const appSettings = getAppSettings()
 
-  const [batches,    setBatches]    = useState<ImportBatch[]>([])
-  const [entries,    setEntries]    = useState<FinancialEntry[]>([])
-  const [loading,    setLoading]    = useState(true)
   const [yearFilter, setYearFilter] = useState<number | 'all'>(appSettings.defaultYear)
   const [modal,      setModal]      = useState<ModalMode | null>(null)
   const closeModal = useCallback(() => setModal(null), [])
 
-  useEffect(() => {
-    Promise.all([getBatches(), getAllFinancialEntries()])
-      .then(([b, e]) => { setBatches(b); setEntries(e) })
-      .finally(() => setLoading(false))
-  }, [])
+  const { data: batches = [], isLoading: batchLoading } = useQuery({
+    queryKey: ['batches'],
+    queryFn: () => getProvider().getBatches(),
+  })
+  const { data: entries = [], isLoading: entriesLoading } = useQuery({
+    queryKey: ['allFinancialEntries'],
+    queryFn: () => getProvider().getAllFinancialEntries(),
+  })
+  const loading = batchLoading || entriesLoading
 
   const activeBatches = batches.filter(b => b.isActive !== false)
   const activeIds     = new Set(activeBatches.map(b => b.id!))

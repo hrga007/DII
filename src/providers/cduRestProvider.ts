@@ -85,5 +85,7 @@ export function createCduRestProvider(_config: CduConfig): DataProvider {
     getInstalledResourcesByInstitution: () => ni('getInstalledResourcesByInstitution'),
 
     addAuditLog: () => ni('addAuditLog'),
+    getAuditLogs: () => ni('getAuditLogs'),
+    getBatchesPaginated: () => ni('getBatchesPaginated'),
   }
 }

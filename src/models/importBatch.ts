@@ -30,4 +30,6 @@ export interface ImportBatch {
   importSummary: ImportSummary
   isActive: boolean
   supersedesId?: string
+  isDeleted?: boolean
+  deletedAt?: Date
 }

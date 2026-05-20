@@ -5,7 +5,6 @@ import {
   setDoc,
   getDoc,
   getDocs,
-  deleteDoc,
   query,
   where,
   orderBy,
@@ -19,6 +18,7 @@ import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue, IssueResolutionMethod } from '../models/financialEntry'
 import type { InstalledResource } from '../models/installedResource'
 import type { AuditLog } from '../models/auditLog'
+import type { PaginationParams, PaginatedResult } from '../providers/DataProvider'
 
 function toTimestamp(d: Date): Timestamp {
   return Timestamp.fromDate(d)
@@ -167,10 +167,12 @@ export async function getBatches(): Promise<ImportBatch[]> {
   const snap = await getDocs(
     query(collection(db, 'importBatches'), orderBy('uploadedAt', 'desc'))
   )
-  return snap.docs.map((d) => {
-    const data = d.data()
-    return { ...data, id: d.id, uploadedAt: fromTimestamp(data.uploadedAt) } as ImportBatch
-  })
+  return snap.docs
+    .map((d) => {
+      const data = d.data()
+      return { ...data, id: d.id, uploadedAt: fromTimestamp(data.uploadedAt) } as ImportBatch
+    })
+    .filter((b) => b.isDeleted !== true)
 }
 
 export async function getBatch(id: string): Promise<ImportBatch | null> {
@@ -183,26 +185,12 @@ export async function getBatch(id: string): Promise<ImportBatch | null> {
 
 export async function deleteBatch(id: string): Promise<void> {
   const db = getFirebaseDb()
-
-  // Cascade-delete all related documents in chunks of 400
-  const SUB: [string, string][] = [
-    ['financialEntries',  'batchId'],
-    ['importIssues',      'batchId'],
-    ['installedResources','batchId'],
-  ]
-  for (const [col, field] of SUB) {
-    const snap = await getDocs(query(collection(db, col), where(field, '==', id)))
-    const ids   = snap.docs.map(d => d.ref)
-    const CHUNK = 400
-    for (let i = 0; i < ids.length; i += CHUNK) {
-      const wb = writeBatch(db)
-      ids.slice(i, i + CHUNK).forEach(ref => wb.delete(ref))
-      await wb.commit()
-    }
-  }
-
-  // Finally delete the batch document itself
-  await deleteDoc(doc(db, 'importBatches', id))
+  // Soft delete — preserve financial/issues data for audit trail
+  await setDoc(
+    doc(db, 'importBatches', id),
+    { isDeleted: true, deletedAt: toTimestamp(new Date()) },
+    { merge: true }
+  )
 }
 
 export async function batchExistsByHash(fileHash: string): Promise<string | null> {
@@ -225,10 +213,12 @@ export async function getBatchesByInstitution(institutionId: string): Promise<Im
       orderBy('uploadedAt', 'desc')
     )
   )
-  return snap.docs.map((d) => {
-    const data = d.data()
-    return { ...data, id: d.id, uploadedAt: fromTimestamp(data.uploadedAt) } as ImportBatch
-  })
+  return snap.docs
+    .map((d) => {
+      const data = d.data()
+      return { ...data, id: d.id, uploadedAt: fromTimestamp(data.uploadedAt) } as ImportBatch
+    })
+    .filter((b) => b.isDeleted !== true)
 }
 
 // Deaktivira sve batcheve institucije i postavlja novi kao aktivan.
@@ -543,4 +533,22 @@ export async function addAuditLog(log: AuditLog): Promise<void> {
     ...log,
     timestamp: toTimestamp(log.timestamp),
   })
+}
+
+export async function getAuditLogs(limitCount = 100): Promise<AuditLog[]> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(
+    query(collection(db, 'auditLogs'), orderBy('timestamp', 'desc'), limit(limitCount))
+  )
+  return snap.docs.map(d => {
+    const data = d.data()
+    return { ...data, id: d.id, timestamp: fromTimestamp(data.timestamp) } as AuditLog
+  })
+}
+
+export async function getBatchesPaginated(params: PaginationParams): Promise<PaginatedResult<ImportBatch>> {
+  const all = await getBatches()
+  const start = params.page * params.pageSize
+  const items = all.slice(start, start + params.pageSize)
+  return { items, total: all.length, hasMore: start + params.pageSize < all.length }
 }

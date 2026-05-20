@@ -1,11 +1,12 @@
-import { useState, useRef, useCallback, useEffect, type DragEvent } from 'react'
+import { useState, useRef, useCallback, type DragEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
   previewFile, runImport,
   type FilePreview, type ImportProgress, type ImportResult,
 } from '../services/importService'
-import { getBatches, deleteBatch } from '../services/firestoreService'
+import { getProvider } from '../providers'
 import { useToast } from '../hooks/useToast'
 import { StatusBadge } from '../components/StatusBadge'
 import type { ImportBatch } from '../models/importBatch'
@@ -203,18 +204,23 @@ export function UploadPage() {
   )
   const [queue,    setQueue]    = useState<QueueItem[]>([])
   const [dragging, setDragging] = useState(false)
-  const [batches,    setBatches]    = useState<ImportBatch[] | null>(null)
-  const [batchLoad,  setBatchLoad]  = useState(true)
   const [confirmId,  setConfirmId]  = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const { showToast } = useToast()
+  const queryClient = useQueryClient()
+
+  const { data: batches = null, isLoading: batchLoad } = useQuery({
+    queryKey: ['batches'],
+    queryFn: () => getProvider().getBatches(),
+    select: (data) => data as ImportBatch[] | null,
+  })
 
   async function handleDeleteBatch(id: string) {
     setDeletingId(id); setConfirmId(null)
     try {
-      await deleteBatch(id)
-      setBatches(prev => prev ? prev.filter(b => b.id !== id) : prev)
+      await getProvider().deleteBatch(id)
+      await queryClient.invalidateQueries({ queryKey: ['batches'] })
       showToast('Batch uspješno obrisan', 'success')
     } catch {
       showToast('Greška pri brisanju batcha', 'error')
@@ -222,12 +228,6 @@ export function UploadPage() {
       setDeletingId(null)
     }
   }
-
-  // Učitaj batcheve odmah pri mountu
-  useEffect(() => {
-    setBatchLoad(true)
-    getBatches().then(setBatches).finally(() => setBatchLoad(false))
-  }, [])
 
   // ── Ažuriranje jednog elementa u redu ──────────────────────────
   const updateItem = useCallback((uid: string, patch: Partial<QueueItem>) => {
@@ -271,7 +271,7 @@ export function UploadPage() {
       const result = await runImport(file, (p) => updateItem(uid, { progress: p }), force)
       updateItem(uid, { status: 'done', result })
       // Invalidate batch lista
-      setBatches(null)
+      await queryClient.invalidateQueries({ queryKey: ['batches'] })
       showToast(
         `${file.name}: ${result.financialEntriesCount} unosa uvezeno`,
         result.errorCount > 0 ? 'warning' : 'success'
