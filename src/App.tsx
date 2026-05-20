@@ -18,7 +18,6 @@ const InstitutionsPage = lazy(() => import('./pages/InstitutionsPage').then(m =>
 const InstitutionDetailPage = lazy(() => import('./pages/InstitutionDetailPage').then(m => ({ default: m.InstitutionDetailPage })))
 const ReportsPage = lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })))
 const AuditPage = lazy(() => import('./pages/AuditPage').then(m => ({ default: m.AuditPage })))
-const ImportsPage = lazy(() => import('./pages/ImportsPage').then(m => ({ default: m.ImportsPage })))
 
 const SuspenseFallback = (
   <div className="flex items-center justify-center min-h-screen">
@@ -109,11 +108,7 @@ export default function App() {
                 <Layout user={user!}><ErrorBoundary><AuditPage /></ErrorBoundary></Layout>
               </RequireAuth>
             } />
-            <Route path="/import-batches" element={
-              <RequireAuth user={user}>
-                <Layout user={user!}><ErrorBoundary><ImportsPage /></ErrorBoundary></Layout>
-              </RequireAuth>
-            } />
+            <Route path="/import-batches" element={<Navigate to="/upload?tab=batches" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

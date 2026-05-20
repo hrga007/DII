@@ -7,7 +7,32 @@ import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
 import type { InstalledResource } from '../models/installedResource'
 import type { CategoryGroup } from '../models/financialEntry'
+import type { AuditLog, AuditAction } from '../models/auditLog'
 import { StatusBadge, ActiveBadge, SeverityBadge } from '../components/StatusBadge'
+
+const ACTIVITY_LABELS: Record<AuditAction, string> = {
+  login:            'Prijava',
+  logout:           'Odjava',
+  upload:           'Upload datoteke',
+  import_complete:  'Import završen',
+  import_failed:    'Import neuspješan',
+  delete_batch:     'Brisanje batcha',
+  set_active_batch: 'Postavljanje aktivnog batcha',
+  supersede_batch:  'Zamjena batcha',
+  manual_correction:'Ručna korekcija',
+  link_institution: 'Povezivanje institucije',
+  bulk_normalize:   'Skupna normalizacija',
+  reupload:         'Ponovna dostava',
+}
+
+function relTimeShort(date: Date): string {
+  const s = Math.floor((Date.now() - date.getTime()) / 1000)
+  if (s < 60)        return 'upravo'
+  if (s < 3600)      return `${Math.floor(s / 60)} min`
+  if (s < 86400)     return `${Math.floor(s / 3600)} h`
+  if (s < 86400 * 7) return `${Math.floor(s / 86400)} d`
+  return date.toLocaleDateString('hr-HR')
+}
 
 const CATEGORIES: CategoryGroup[] = ['CAPEX', 'LICENCE', 'ODRZAVANJE', 'OPEX', 'CLOUD']
 const CAT_LABELS: Record<CategoryGroup, string> = {
@@ -19,7 +44,7 @@ const CAT_LABELS: Record<CategoryGroup, string> = {
 }
 const YEARS = [2024, 2025, 2026, 2027, 2028]
 
-type Tab = 'financije' | 'batches' | 'resursi' | 'greske'
+type Tab = 'financije' | 'batches' | 'resursi' | 'greske' | 'aktivnost'
 
 // Simple SVG bar chart: realizirano (green) vs planirano (blue) per category
 function BarChart({ entries }: { entries: FinancialEntry[] }) {
@@ -479,8 +504,13 @@ export function InstitutionDetailPage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('financije')
+  const [resDcFilter, setResDcFilter] = useState('')
+  const [resNameFilter, setResNameFilter] = useState('')
   const [issueFilter, setIssueFilter] = useState<'sve' | 'nerijesene' | 'rijesene'>('sve')
   const [diffOpen, setDiffOpen] = useState(false)
+  const [activityLogs, setActivityLogs] = useState<AuditLog[]>([])
+  const [activityLoading, setActivityLoading] = useState(false)
+  const [activityFetched, setActivityFetched] = useState(false)
   useEffect(() => {
     if (!id) return
     setLoading(true)
@@ -517,6 +547,21 @@ export function InstitutionDetailPage() {
       .finally(() => setLoading(false))
   }, [id])
 
+  useEffect(() => {
+    if (tab !== 'aktivnost' || activityFetched || !id) return
+    setActivityLoading(true)
+    setActivityFetched(true)
+    getProvider().getAuditLogs(300).then(all => {
+      const batchIds = new Set(batches.map(b => b.id).filter(Boolean) as string[])
+      setActivityLogs(all.filter(l =>
+        l.entityId === id ||
+        (l.entityType === 'importBatch' && batchIds.has(l.entityId)) ||
+        (l.details as Record<string, unknown>)?.institutionId === id
+      ))
+    }).finally(() => setActivityLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, id])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -550,9 +595,10 @@ export function InstitutionDetailPage() {
 
   const TABS: { key: Tab; label: string; count?: number }[] = [
     { key: 'financije', label: 'Financijski pregled' },
-    { key: 'batches', label: 'Povijest aktivnosti', count: batches.length },
+    { key: 'batches', label: 'Batch-evi', count: batches.length },
     { key: 'resursi', label: 'Resursi', count: resources.length },
     { key: 'greske', label: 'Greške i upozorenja', count: issues.filter((i) => !i.resolvedAt).length || undefined },
+    { key: 'aktivnost', label: 'Aktivnost' },
   ]
 
   const filteredIssues = issues.filter((i) => {
@@ -721,37 +767,92 @@ export function InstitutionDetailPage() {
       )}
 
       {/* Tab: Resursi */}
-      {tab === 'resursi' && (
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-          {resources.length === 0 ? (
-            <p className="p-8 text-center text-gray-400">Nema resursa za ovu instituciju</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {['Data centar', 'Resurs', 'Jed.', 'Instalirano', 'Ukupno', 'Napomena'].map((h) => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {resources.map((r) => (
-                    <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{r.dataCenterName || '—'}</td>
-                      <td className="px-4 py-3 text-gray-700">{r.resourceName}</td>
-                      <td className="px-4 py-3 text-gray-500">{r.unit}</td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-800">{r.installedValue}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{r.totalCapacity}</td>
-                      <td className="px-4 py-3 text-gray-400 text-xs max-w-xs truncate">{r.note || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {tab === 'resursi' && (() => {
+        const dcNames = [...new Set(resources.map((r) => r.dataCenterName).filter(Boolean))]
+        const filtered = resources.filter((r) =>
+          (!resDcFilter || r.dataCenterName === resDcFilter) &&
+          (!resNameFilter || r.resourceName.toLowerCase().includes(resNameFilter.toLowerCase()))
+        )
+        const utilPct = (r: InstalledResource) => {
+          const inst = Number(r.installedValue)
+          const cap  = Number(r.totalCapacity)
+          return cap > 0 && inst >= 0 ? Math.min(100, Math.round((inst / cap) * 100)) : null
+        }
+        return (
+          <div>
+            {resources.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                <select
+                  value={resDcFilter}
+                  onChange={(e) => setResDcFilter(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Svi data centri ({dcNames.length})</option>
+                  {dcNames.map((dc) => <option key={dc} value={dc}>{dc}</option>)}
+                </select>
+                <input
+                  type="text"
+                  placeholder="Pretraži resurs..."
+                  value={resNameFilter}
+                  onChange={(e) => setResNameFilter(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 w-44"
+                />
+                {(resDcFilter || resNameFilter) && (
+                  <button onClick={() => { setResDcFilter(''); setResNameFilter('') }} className="text-xs text-blue-600 hover:underline">
+                    × Očisti
+                  </button>
+                )}
+                <span className="text-xs text-gray-400 self-center ml-auto">{filtered.length} resursa</span>
+              </div>
+            )}
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              {filtered.length === 0 ? (
+                <p className="p-8 text-center text-gray-400">Nema resursa{resDcFilter || resNameFilter ? ' za odabrani filter' : ' za ovu instituciju'}</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {['Data centar', 'Resurs', 'Jed.', 'Instalirano', 'Ukupno', 'Iskorištenost', 'Napomena'].map((h) => (
+                          <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filtered.map((r) => {
+                        const pct = utilPct(r)
+                        return (
+                          <tr key={r.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{r.dataCenterName || '—'}</td>
+                            <td className="px-4 py-3 text-gray-700">{r.resourceName}</td>
+                            <td className="px-4 py-3 text-gray-500">{r.unit}</td>
+                            <td className="px-4 py-3 text-right font-medium text-gray-800">{String(r.installedValue) || '—'}</td>
+                            <td className="px-4 py-3 text-right text-gray-600">{String(r.totalCapacity) || '—'}</td>
+                            <td className="px-4 py-3">
+                              {pct !== null ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden w-20">
+                                    <div
+                                      className={`h-full rounded-full ${pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-yellow-500' : 'bg-emerald-500'}`}
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-gray-500">{pct}%</span>
+                                </div>
+                              ) : <span className="text-gray-300 text-xs">—</span>}
+                            </td>
+                            <td className="px-4 py-3 text-gray-400 text-xs max-w-xs truncate">{r.note || '—'}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )
+      })()}
 
       {/* Tab: Greške i upozorenja */}
       {tab === 'greske' && (
@@ -814,6 +915,61 @@ export function InstitutionDetailPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Tab: Aktivnost */}
+      {tab === 'aktivnost' && (
+        <div>
+          {activityLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+            </div>
+          ) : activityLogs.length === 0 ? (
+            <div className="py-16 text-center text-gray-400">
+              <p className="text-3xl mb-2">📋</p>
+              <p className="text-sm">Nema zabilježene aktivnosti za ovu instituciju</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {activityLogs.map((log) => (
+                <div
+                  key={log.id ?? `${log.entityId}-${log.timestamp.getTime()}`}
+                  className="flex items-start gap-4 px-4 py-3 bg-white rounded-xl border border-gray-100"
+                >
+                  <div className="w-16 shrink-0 text-right">
+                    <span className="text-xs text-gray-400" title={log.timestamp.toLocaleString('hr-HR')}>
+                      {relTimeShort(log.timestamp)}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-700">
+                      {ACTIVITY_LABELS[log.action] ?? log.action}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {log.timestamp.toLocaleString('hr-HR', { dateStyle: 'short', timeStyle: 'short' })}
+                      {log.entityType === 'importBatch' && log.entityId && (
+                        <>
+                          {' · '}
+                          <Link to={`/imports/${log.entityId}`} className="text-blue-600 hover:underline font-mono">
+                            {log.entityId.slice(0, 8)}…
+                          </Link>
+                        </>
+                      )}
+                    </p>
+                    {Object.keys(log.details ?? {}).length > 0 && (
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">
+                        {Object.entries(log.details)
+                          .filter(([, v]) => typeof v !== 'object')
+                          .map(([k, v]) => `${k}: ${v}`)
+                          .join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

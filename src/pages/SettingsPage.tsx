@@ -152,6 +152,7 @@ export function SettingsPage() {
   const [updatingUid, setUpdatingUid] = useState<string | null>(null)
   const [confirmRemoveUid, setConfirmRemoveUid] = useState<string | null>(null)
   const [removingUid, setRemovingUid] = useState<string | null>(null)
+  const [userSearch, setUserSearch] = useState('')
 
   async function loadUsers() {
     setUsersLoading(true)
@@ -296,19 +297,33 @@ export function SettingsPage() {
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
               <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100" style={{ backgroundColor: 'var(--s-rz)' }}>
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: 'var(--t1)' }}>Korisnici</p>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--t1)' }}>
+                    Korisnici
+                    {users.length > 0 && <span className="ml-1.5 text-xs font-normal opacity-60">({users.length})</span>}
+                  </p>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>
                     Pregled korisnika i dodjela uloga
                   </p>
                 </div>
-                {isInitialized() && (
-                  <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="btn-primary text-sm px-4 py-2 rounded-xl font-medium"
-                  >
-                    + Novi korisnik
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {users.length > 3 && (
+                    <input
+                      type="text"
+                      placeholder="Pretraži email..."
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 w-44"
+                    />
+                  )}
+                  {isInitialized() && (
+                    <button
+                      onClick={() => setShowCreateModal(true)}
+                      className="btn-primary text-sm px-4 py-2 rounded-xl font-medium"
+                    >
+                      + Novi korisnik
+                    </button>
+                  )}
+                </div>
               </div>
 
               {!isInitialized() ? (
@@ -329,7 +344,7 @@ export function SettingsPage() {
                 </div>
               ) : (
                 <div className="divide-y divide-gray-50">
-                  {users.map(u => {
+                  {users.filter(u => !userSearch || u.email.toLowerCase().includes(userSearch.toLowerCase())).map(u => {
                     const isRemoving = removingUid === u.uid
                     const isConfirm  = confirmRemoveUid === u.uid
                     const isUpdating = updatingUid === u.uid
@@ -358,6 +373,7 @@ export function SettingsPage() {
                                 <button
                                   key={r}
                                   onClick={() => u.role !== r && handleUpdateRole(u.uid, r)}
+                                  title={r === 'admin' ? 'Može uređivati, uvoziti i brisati' : 'Može samo pregledavati podatke'}
                                   className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
                                     u.role === r
                                       ? 'act-bg act-tx'

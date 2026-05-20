@@ -15,6 +15,34 @@ interface InstitutionRow {
   lastUpload: Date | null
 }
 
+type FilterKey = 'sve' | 'greske' | 'nema_aktivnog' | 'nema_batcha'
+type SortKey = 'batches_desc' | 'abecedno' | 'datum_desc' | 'greske_desc'
+
+export function filterAndSortRows(
+  rows: InstitutionRow[],
+  search: string,
+  filter: FilterKey,
+  sort: SortKey,
+): InstitutionRow[] {
+  let result = rows.filter((r) => {
+    const matchText =
+      r.institution.name.toLowerCase().includes(search.toLowerCase()) ||
+      r.institution.oib.includes(search)
+    if (!matchText) return false
+    if (filter === 'greske')       return r.batches.some((b) => b.errorCount > 0)
+    if (filter === 'nema_aktivnog') return r.batches.length > 0 && !r.activeBatch
+    if (filter === 'nema_batcha')  return r.batches.length === 0
+    return true
+  })
+  result = [...result].sort((a, b) => {
+    if (sort === 'abecedno')    return a.institution.name.localeCompare(b.institution.name, 'hr')
+    if (sort === 'datum_desc')  return (b.lastUpload?.getTime() ?? 0) - (a.lastUpload?.getTime() ?? 0)
+    if (sort === 'greske_desc') return b.batches.reduce((s, x) => s + x.errorCount, 0) - a.batches.reduce((s, x) => s + x.errorCount, 0)
+    return b.batches.length - a.batches.length
+  })
+  return result
+}
+
 export function InstitutionsPage() {
   usePageTitle('Institucije')
   const location = useLocation()
@@ -22,6 +50,8 @@ export function InstitutionsPage() {
     (location.state as { expandId?: string } | null)?.expandId ?? null
   )
   const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState<FilterKey>('sve')
+  const [sort, setSort] = useState<SortKey>('batches_desc')
   const expandedRef = useRef<HTMLDivElement | null>(null)
 
   const { data: institutions = [], isLoading: instLoading } = useQuery({
@@ -61,10 +91,7 @@ export function InstitutionsPage() {
     }
   }, [expanded, rows])
 
-  const filtered = rows.filter((r) =>
-    r.institution.name.toLowerCase().includes(search.toLowerCase()) ||
-    r.institution.oib.includes(search)
-  )
+  const filtered = filterAndSortRows(rows, search, filter, sort)
 
   if (loading) {
     return (
@@ -87,6 +114,49 @@ export function InstitutionsPage() {
             placeholder="Pretraži naziv ili OIB..."
             className="pl-8 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-64"
           />
+        </div>
+      </div>
+
+      {/* Filters + sort */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="flex gap-1.5 flex-wrap">
+          {([
+            { key: 'sve',         label: 'Sve' },
+            { key: 'greske',      label: 'Ima greške' },
+            { key: 'nema_aktivnog', label: 'Nema aktivnog' },
+            { key: 'nema_batcha', label: 'Bez batcha' },
+          ] as { key: FilterKey; label: string }[]).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                filter === key ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {label}
+              {key !== 'sve' && (() => {
+                const count = rows.filter((r) => {
+                  if (key === 'greske')       return r.batches.some((b) => b.errorCount > 0)
+                  if (key === 'nema_aktivnog') return r.batches.length > 0 && !r.activeBatch
+                  if (key === 'nema_batcha')  return r.batches.length === 0
+                  return false
+                }).length
+                return count > 0 ? <span className="ml-1 opacity-70">({count})</span> : null
+              })()}
+            </button>
+          ))}
+        </div>
+        <div className="ml-auto">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey)}
+            className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="batches_desc">Sortiraj: po batch-evima</option>
+            <option value="abecedno">Sortiraj: A–Z</option>
+            <option value="datum_desc">Sortiraj: najnoviji upload</option>
+            <option value="greske_desc">Sortiraj: najviše grešaka</option>
+          </select>
         </div>
       </div>
 

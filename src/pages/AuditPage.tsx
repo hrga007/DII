@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getProvider } from '../providers'
 import type { AuditLog, AuditAction } from '../models/auditLog'
+import { exportAuditToExcel } from '../utils/exportUtils'
 
 const ACTION_LABELS: Record<AuditAction, string> = {
   login: 'Prijava',
@@ -20,6 +21,27 @@ const ACTION_LABELS: Record<AuditAction, string> = {
 }
 
 const PAGE_SIZE = 20
+
+export function filterAuditLogs(
+  logs: AuditLog[],
+  actionFilter: AuditAction | 'all',
+  dateFrom: string,
+  dateTo: string,
+): AuditLog[] {
+  return logs.filter((log) => {
+    if (actionFilter !== 'all' && log.action !== actionFilter) return false
+    if (dateFrom) {
+      const from = new Date(dateFrom)
+      if (log.timestamp < from) return false
+    }
+    if (dateTo) {
+      const to = new Date(dateTo)
+      to.setHours(23, 59, 59, 999)
+      if (log.timestamp > to) return false
+    }
+    return true
+  })
+}
 
 function relativeTime(date: Date): string {
   const now = Date.now()
@@ -43,21 +65,10 @@ export function AuditPage() {
     queryFn: () => getProvider().getAuditLogs(200),
   })
 
-  const filtered = useMemo(() => {
-    return logs.filter((log: AuditLog) => {
-      if (actionFilter !== 'all' && log.action !== actionFilter) return false
-      if (dateFrom) {
-        const from = new Date(dateFrom)
-        if (log.timestamp < from) return false
-      }
-      if (dateTo) {
-        const to = new Date(dateTo)
-        to.setHours(23, 59, 59, 999)
-        if (log.timestamp > to) return false
-      }
-      return true
-    })
-  }, [logs, actionFilter, dateFrom, dateTo])
+  const filtered = useMemo(
+    () => filterAuditLogs(logs, actionFilter, dateFrom, dateTo),
+    [logs, actionFilter, dateFrom, dateTo],
+  )
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
@@ -76,9 +87,19 @@ export function AuditPage() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
         <h1 className="text-xl font-bold text-gray-800">Audit log</h1>
-        {!isLoading && (
-          <span className="text-sm text-gray-500">{filtered.length} zapisa</span>
-        )}
+        <div className="flex items-center gap-3">
+          {!isLoading && (
+            <span className="text-sm text-gray-500">{filtered.length} zapisa</span>
+          )}
+          {filtered.length > 0 && (
+            <button
+              onClick={() => exportAuditToExcel(filtered, `audit-log-${new Date().toISOString().slice(0, 10)}.xlsx`)}
+              className="text-sm px-4 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+            >
+              ↓ Excel
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
