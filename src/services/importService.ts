@@ -1,5 +1,5 @@
-import { parseWorkbook } from '../excel/parseWorkbook'
 import type { RawSheet } from '../excel/parseWorkbook'
+import { parseWorkbookInWorker } from '../excel/useParseWorker'
 import { mapOpcePodaci, mapFinancialSheet, mapResursi } from '../excel/sheetMappers'
 import { getProvider } from '../providers'
 import { currentUser } from './authService'
@@ -70,7 +70,7 @@ export async function previewFile(file: File): Promise<FilePreview> {
 
   const fileHash = await hashBuffer(buffer)
   const duplicateBatchId = await getProvider().batchExistsByHash(fileHash)
-  const workbook = parseWorkbook(buffer)
+  const workbook = await parseWorkbookInWorker(buffer.slice(0))
 
   const { institution } = mapOpcePodaci(workbook.opcePodaci, '')
 
@@ -121,7 +121,7 @@ export async function runImport(
 
   // 3. Parse Excel
   onProgress({ step: 'parse', message: 'Parsiram Excel datoteku...' })
-  const workbook = parseWorkbook(buffer)
+  const workbook = await parseWorkbookInWorker(buffer)
 
   // Create batch record (processing)
   const batchRecord: Omit<ImportBatch, 'id'> = {

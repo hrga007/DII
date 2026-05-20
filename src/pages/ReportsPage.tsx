@@ -1,10 +1,10 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
 import * as XLSX from 'xlsx'
 import { getProvider } from '../providers'
 import type { FinancialEntry, CategoryGroup } from '../models/financialEntry'
-import type { Institution } from '../models/institution'
 
 const CATEGORIES: CategoryGroup[] = ['CAPEX', 'LICENCE', 'ODRZAVANJE', 'OPEX', 'CLOUD']
 const CAT_LABELS: Record<CategoryGroup, string> = {
@@ -26,10 +26,6 @@ function fmt(v: number) {
 export function ReportsPage() {
   usePageTitle('Izvještaji')
   const navigate = useNavigate()
-  const [allEntries, setAllEntries] = useState<FinancialEntry[]>([])
-  const [institutions, setInstitutions] = useState<Institution[]>([])
-  const [loading, setLoading] = useState(true)
-
   // Filters
   const [year, setYear] = useState<number | 'all'>(new Date().getFullYear())
   const [selectedCats, setSelectedCats] = useState<Set<CategoryGroup>>(new Set(CATEGORIES))
@@ -41,19 +37,24 @@ export function ReportsPage() {
   const [sortCol, setSortCol] = useState<SortCol>('Ukupno')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
+  const { data: allEntries = [], isLoading: entriesLoading } = useQuery({
+    queryKey: ['allFinancialEntries'],
+    queryFn: () => getProvider().getAllFinancialEntries(),
+  })
+  const { data: institutions = [], isLoading: instLoading } = useQuery({
+    queryKey: ['institutions'],
+    queryFn: () => getProvider().getInstitutions(),
+  })
+  const loading = entriesLoading || instLoading
+
+  // Default year to the most common year in data
   useEffect(() => {
-    Promise.all([getProvider().getAllFinancialEntries(), getProvider().getInstitutions()])
-      .then(([entries, insts]) => {
-        setAllEntries(entries)
-        setInstitutions(insts)
-        // default year to the most common year in data
-        const yearCounts: Record<number, number> = {}
-        entries.forEach((e) => { yearCounts[e.year] = (yearCounts[e.year] ?? 0) + 1 })
-        const topYear = Object.entries(yearCounts).sort((a, b) => b[1] - a[1])[0]?.[0]
-        if (topYear) setYear(Number(topYear))
-      })
-      .finally(() => setLoading(false))
-  }, [])
+    if (allEntries.length === 0) return
+    const yearCounts: Record<number, number> = {}
+    allEntries.forEach((e: FinancialEntry) => { yearCounts[e.year] = (yearCounts[e.year] ?? 0) + 1 })
+    const topYear = Object.entries(yearCounts).sort((a, b) => b[1] - a[1])[0]?.[0]
+    if (topYear) setYear(Number(topYear))
+  }, [allEntries])
 
   // Available years from data
   const availableYears = useMemo(() => {

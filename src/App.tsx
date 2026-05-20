@@ -7,6 +7,7 @@ import { ThemeProvider } from './hooks/useTheme'
 import { ToastProvider } from './hooks/useToast'
 import { ToastContainer } from './components/ToastContainer'
 import { Layout } from './components/Layout'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoginPage } from './pages/LoginPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { UploadPage } from './pages/UploadPage'
@@ -58,39 +59,39 @@ export default function App() {
         <Routes>
           <Route path="/settings" element={
             user
-              ? <Layout user={user}><SettingsPage /></Layout>
+              ? <Layout user={user}><ErrorBoundary><SettingsPage /></ErrorBoundary></Layout>
               : <SettingsPage />
           } />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={
             <RequireAuth user={user}>
-              <Layout user={user!}><DashboardPage /></Layout>
+              <Layout user={user!}><ErrorBoundary><DashboardPage /></ErrorBoundary></Layout>
             </RequireAuth>
           } />
           <Route path="/upload" element={
             <RequireAuth user={user}>
-              <Layout user={user!}><UploadPage /></Layout>
+              <Layout user={user!}><ErrorBoundary><UploadPage /></ErrorBoundary></Layout>
             </RequireAuth>
           } />
           <Route path="/imports" element={<Navigate to="/upload?tab=batches" replace />} />
           <Route path="/imports/:id" element={
             <RequireAuth user={user}>
-              <Layout user={user!}><ImportDetailPage /></Layout>
+              <Layout user={user!}><ErrorBoundary><ImportDetailPage /></ErrorBoundary></Layout>
             </RequireAuth>
           } />
           <Route path="/institutions" element={
             <RequireAuth user={user}>
-              <Layout user={user!}><InstitutionsPage /></Layout>
+              <Layout user={user!}><ErrorBoundary><InstitutionsPage /></ErrorBoundary></Layout>
             </RequireAuth>
           } />
           <Route path="/institucije/:id" element={
             <RequireAuth user={user}>
-              <Layout user={user!}><InstitutionDetailPage /></Layout>
+              <Layout user={user!}><ErrorBoundary><InstitutionDetailPage /></ErrorBoundary></Layout>
             </RequireAuth>
           } />
           <Route path="/izvjestaji" element={
             <RequireAuth user={user}>
-              <Layout user={user!}><ReportsPage /></Layout>
+              <Layout user={user!}><ErrorBoundary><ReportsPage /></ErrorBoundary></Layout>
             </RequireAuth>
           } />
           <Route path="*" element={<Navigate to="/" replace />} />

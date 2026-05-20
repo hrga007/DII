@@ -1,22 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { getProvider } from '../providers'
 import { currentUser } from '../services/authService'
 import type { ImportBatch } from '../models/importBatch'
 import { StatusBadge, ActiveBadge } from '../components/StatusBadge'
 
 export function ImportsPage() {
-  const [batches, setBatches] = useState<ImportBatch[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState('')
+  const { data: batches = [], isLoading: loading, error: queryError, refetch } = useQuery({
+    queryKey: ['batches'],
+    queryFn: () => getProvider().getBatches(),
+  })
+  const error = queryError ? String(queryError) : ''
   const [activating, setActivating] = useState<string | null>(null)
-
-  useEffect(() => {
-    getProvider().getBatches()
-      .then(setBatches)
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false))
-  }, [])
 
   async function handleActivate(b: ImportBatch) {
     if (!b.id || !b.institutionId) return
@@ -34,8 +30,7 @@ export function ImportsPage() {
           details: { institutionId: b.institutionId },
         })
       }
-      const updated = await getProvider().getBatches()
-      setBatches(updated)
+      await refetch()
     } finally {
       setActivating(null)
     }
