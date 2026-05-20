@@ -51,4 +51,8 @@ export const firebaseProvider: DataProvider = {
 
   // Audit
   addAuditLog: fs.addAuditLog,
+  getAuditLogs: fs.getAuditLogs,
+
+  // Paginated
+  getBatchesPaginated: fs.getBatchesPaginated,
 }

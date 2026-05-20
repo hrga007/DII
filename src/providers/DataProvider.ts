@@ -11,6 +11,16 @@
  * (vidi CDU_MIGRATION.md).
  */
 
+export interface PaginationParams {
+  page: number      // 0-indexed
+  pageSize: number
+}
+export interface PaginatedResult<T> {
+  items: T[]
+  total: number
+  hasMore: boolean
+}
+
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue, IssueResolutionMethod } from '../models/financialEntry'
@@ -65,4 +75,8 @@ export interface DataProvider {
 
   // ─── Audit Logs ────────────────────────────────────────────────
   addAuditLog(log: AuditLog): Promise<void>
+  getAuditLogs(limitCount?: number): Promise<AuditLog[]>
+
+  // ─── Paginated ─────────────────────────────────────────────────
+  getBatchesPaginated(params: PaginationParams): Promise<PaginatedResult<ImportBatch>>
 }

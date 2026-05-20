@@ -1,14 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
-import {
-  getInstitutionById,
-  getBatchesByInstitution,
-  getFinancialEntries,
-  getFinancialEntriesByInstitution,
-  getInstalledResourcesByInstitution,
-  getImportIssuesByInstitution,
-} from '../services/firestoreService'
+import { getProvider } from '../providers'
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
@@ -231,7 +224,7 @@ function BatchDiffModal({ batches, onClose }: BatchDiffModalProps) {
   useEffect(() => {
     if (!batchAId || !batchBId || batchAId === batchBId) return
     setLoading(true)
-    Promise.all([getFinancialEntries(batchAId), getFinancialEntries(batchBId)])
+    Promise.all([getProvider().getFinancialEntries(batchAId), getProvider().getFinancialEntries(batchBId)])
       .then(([a, b]) => { setEntriesA(a); setEntriesB(b) })
       .finally(() => setLoading(false))
   }, [batchAId, batchBId])
@@ -495,7 +488,7 @@ export function InstitutionDetailPage() {
     setLoadError(null)
 
     // Instituciju dohvaćamo direktnim getDoc — ne ovisi ni o jednom indexu
-    getInstitutionById(id)
+    getProvider().getInstitutionById(id)
       .then((inst) => {
         if (!inst) { setLoadError('not_found'); return }
         setInstitution(inst)
@@ -503,10 +496,10 @@ export function InstitutionDetailPage() {
         // Ostale podatke dohvaćamo paralelno; ako neki upit ne uspije,
         // prikazujemo što možemo (allSettled ne baca za djelomične greške)
         return Promise.allSettled([
-          getBatchesByInstitution(id),
-          getFinancialEntriesByInstitution(id),
-          getInstalledResourcesByInstitution(id),
-          getImportIssuesByInstitution(id),
+          getProvider().getBatchesByInstitution(id),
+          getProvider().getFinancialEntriesByInstitution(id),
+          getProvider().getInstalledResourcesByInstitution(id),
+          getProvider().getImportIssuesByInstitution(id),
         ]).then(([batchRes, entryRes, resRes, issueRes]) => {
           if (batchRes.status === 'fulfilled') setBatches(batchRes.value)
           if (entryRes.status === 'fulfilled') setEntries(entryRes.value)

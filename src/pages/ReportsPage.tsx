@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
 import * as XLSX from 'xlsx'
-import { getAllFinancialEntries, getInstitutions } from '../services/firestoreService'
+import { getProvider } from '../providers'
 import type { FinancialEntry, CategoryGroup } from '../models/financialEntry'
 import type { Institution } from '../models/institution'
 
@@ -42,7 +42,7 @@ export function ReportsPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
   useEffect(() => {
-    Promise.all([getAllFinancialEntries(), getInstitutions()])
+    Promise.all([getProvider().getAllFinancialEntries(), getProvider().getInstitutions()])
       .then(([entries, insts]) => {
         setAllEntries(entries)
         setInstitutions(insts)

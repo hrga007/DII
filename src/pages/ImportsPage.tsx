@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getBatches, activateBatch, addAuditLog } from '../services/firestoreService'
+import { getProvider } from '../providers'
 import { currentUser } from '../services/authService'
 import type { ImportBatch } from '../models/importBatch'
 import { StatusBadge, ActiveBadge } from '../components/StatusBadge'
@@ -12,7 +12,7 @@ export function ImportsPage() {
   const [activating, setActivating] = useState<string | null>(null)
 
   useEffect(() => {
-    getBatches()
+    getProvider().getBatches()
       .then(setBatches)
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
@@ -22,10 +22,10 @@ export function ImportsPage() {
     if (!b.id || !b.institutionId) return
     setActivating(b.id)
     try {
-      await activateBatch(b.id, b.institutionId)
+      await getProvider().activateBatch(b.id, b.institutionId)
       const user = currentUser()
       if (user) {
-        await addAuditLog({
+        await getProvider().addAuditLog({
           userId: user.uid,
           action: 'set_active_batch',
           entityType: 'importBatch',
@@ -34,7 +34,7 @@ export function ImportsPage() {
           details: { institutionId: b.institutionId },
         })
       }
-      const updated = await getBatches()
+      const updated = await getProvider().getBatches()
       setBatches(updated)
     } finally {
       setActivating(null)

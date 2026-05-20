@@ -1,19 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
-import {
-  getBatch,
-  getFinancialEntries,
-  getImportIssues,
-  getInstalledResources,
-  getInstitutions,
-  deleteBatch,
-  activateBatch,
-  addAuditLog,
-  linkBatchToInstitution,
-  normalizeIssues,
-  resolveIssue,
-} from '../services/firestoreService'
+import { getProvider } from '../providers'
 import { runImport } from '../services/importService'
 import { currentUser } from '../services/authService'
 import type { ImportBatch } from '../models/importBatch'
@@ -56,7 +44,7 @@ function LinkInstitutionPanel({ batchId, onLinked }: LinkPanelProps) {
   const [saving, setSaving] = useState(false)
   const [query, setQuery] = useState('')
 
-  useEffect(() => { getInstitutions().then(setInstitutions) }, [])
+  useEffect(() => { getProvider().getInstitutions().then(setInstitutions) }, [])
 
   const filtered = institutions.filter(i =>
     i.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -69,8 +57,8 @@ function LinkInstitutionPanel({ batchId, onLinked }: LinkPanelProps) {
     try {
       const user = currentUser()
       if (!user) return
-      await linkBatchToInstitution(batchId, selected, user.uid)
-      await addAuditLog({
+      await getProvider().linkBatchToInstitution(batchId, selected, user.uid)
+      await getProvider().addAuditLog({
         userId: user.uid,
         action: 'link_institution',
         entityType: 'importBatch',
@@ -137,8 +125,8 @@ function NormalizeModal({ batchId, warningCount, onClose, onDone }: NormalizeMod
     try {
       const user = currentUser()
       if (!user) return
-      const count = await normalizeIssues([batchId], user.uid)
-      await addAuditLog({
+      const count = await getProvider().normalizeIssues([batchId], user.uid)
+      await getProvider().addAuditLog({
         userId: user.uid,
         action: 'bulk_normalize',
         entityType: 'importBatch',
@@ -218,8 +206,8 @@ function TipAModal({ issue, onClose, onSaved }: TipAModalProps) {
     try {
       const user = currentUser()
       if (!user) return
-      await resolveIssue(issue.id, user.uid, 'MANUAL_EDIT', value.trim(), note.trim() || undefined)
-      await addAuditLog({
+      await getProvider().resolveIssue(issue.id, user.uid, 'MANUAL_EDIT', value.trim(), note.trim() || undefined)
+      await getProvider().addAuditLog({
         userId: user.uid,
         action: 'manual_correction',
         entityType: 'importIssue',
@@ -420,7 +408,7 @@ export function ImportDetailPage() {
   async function reload() {
     if (!id) return
     const [b, e, iss, res] = await Promise.all([
-      getBatch(id), getFinancialEntries(id), getImportIssues(id), getInstalledResources(id),
+      getProvider().getBatch(id), getProvider().getFinancialEntries(id), getProvider().getImportIssues(id), getProvider().getInstalledResources(id),
     ])
     setBatch(b); setEntries(e); setIssues(iss); setResources(res)
   }
@@ -442,7 +430,7 @@ export function ImportDetailPage() {
     if (!id) return
     setDeleteStep('deleting')
     try {
-      await deleteBatch(id)
+      await getProvider().deleteBatch(id)
       navigate('/upload?tab=batches', { replace: true })
     } catch {
       setDeleteStep('idle')
@@ -453,10 +441,10 @@ export function ImportDetailPage() {
     if (!id || !batch?.institutionId) return
     setActivating(true)
     try {
-      await activateBatch(id, batch.institutionId)
+      await getProvider().activateBatch(id, batch.institutionId)
       const user = currentUser()
       if (user) {
-        await addAuditLog({
+        await getProvider().addAuditLog({
           userId: user.uid,
           action: 'set_active_batch',
           entityType: 'importBatch',

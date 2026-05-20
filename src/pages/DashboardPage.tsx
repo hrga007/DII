@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { getBatches, getAllFinancialEntries, getAllImportIssues, resolveIssue, addAuditLog } from '../services/firestoreService'
+import { getProvider } from '../providers'
 import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
 import { StatCard } from '../components/StatCard'
@@ -49,7 +49,7 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
   const [saving,      setSaving]      = useState(false)
 
   useEffect(() => {
-    getAllImportIssues(mode)
+    getProvider().getAllImportIssues(mode)
       .then(setIssues)
       .finally(() => setLoading(false))
   }, [mode])
@@ -81,8 +81,8 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
     try {
       const user = currentUser()
       if (!user || !iss.id) return
-      await resolveIssue(iss.id, user.uid, 'MANUAL_EDIT', editValue.trim(), editNote.trim() || undefined)
-      await addAuditLog({
+      await getProvider().resolveIssue(iss.id, user.uid, 'MANUAL_EDIT', editValue.trim(), editNote.trim() || undefined)
+      await getProvider().addAuditLog({
         userId: user.uid,
         action: 'manual_correction',
         entityType: 'importIssue',
@@ -373,7 +373,7 @@ export function DashboardPage() {
   const closeModal = useCallback(() => setModal(null), [])
 
   useEffect(() => {
-    Promise.all([getBatches(), getAllFinancialEntries()])
+    Promise.all([getProvider().getBatches(), getProvider().getAllFinancialEntries()])
       .then(([b, e]) => { setBatches(b); setEntries(e) })
       .finally(() => setLoading(false))
   }, [])

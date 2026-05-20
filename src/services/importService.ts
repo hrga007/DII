@@ -1,18 +1,7 @@
 import { parseWorkbook } from '../excel/parseWorkbook'
 import type { RawSheet } from '../excel/parseWorkbook'
 import { mapOpcePodaci, mapFinancialSheet, mapResursi } from '../excel/sheetMappers'
-import {
-  batchExistsByHash,
-  createBatch,
-  updateBatch,
-  upsertInstitution,
-  saveFinancialEntries,
-  saveImportIssues,
-  saveInstalledResources,
-  addAuditLog,
-  getBatchesByInstitution,
-  supersedeBatch,
-} from './firestoreService'
+import { getProvider } from '../providers'
 import { currentUser } from './authService'
 import type { ImportBatch } from '../models/importBatch'
 import type { ImportIssue } from '../models/financialEntry'
@@ -80,7 +69,7 @@ export async function previewFile(file: File): Promise<FilePreview> {
   const buffer = await file.arrayBuffer()
 
   const fileHash = await hashBuffer(buffer)
-  const duplicateBatchId = await batchExistsByHash(fileHash)
+  const duplicateBatchId = await getProvider().batchExistsByHash(fileHash)
   const workbook = parseWorkbook(buffer)
 
   const { institution } = mapOpcePodaci(workbook.opcePodaci, '')
@@ -124,7 +113,7 @@ export async function runImport(
   // 2. Duplicate check
   onProgress({ step: 'duplicate_check', message: 'Provjeravam duplikate...' })
   if (!force) {
-    const existingId = await batchExistsByHash(fileHash)
+    const existingId = await getProvider().batchExistsByHash(fileHash)
     if (existingId) {
       throw new Error(`Ova datoteka je već uvezena (batch ID: ${existingId})`)
     }
@@ -155,7 +144,8 @@ export async function runImport(
       institutionName: '',
     },
   }
-  const batchId = await createBatch(batchRecord as ImportBatch)
+  const provider = getProvider()
+  const batchId = await provider.createBatch(batchRecord as ImportBatch)
 
   try {
     // 5. Map & validate
@@ -180,7 +170,7 @@ export async function runImport(
     // Opći podaci → institution
     const { institution, issues: instIssues } = mapOpcePodaci(workbook.opcePodaci, batchId)
     allIssues.push(...instIssues)
-    const institutionId = institution ? await upsertInstitution(institution) : ''
+    const institutionId = institution ? await provider.upsertInstitution(institution) : ''
     const institutionName = institution?.name ?? ''
 
     // Financial sheets
@@ -205,12 +195,12 @@ export async function runImport(
     )
     allIssues.push(...resIssues)
 
-    // 6. Save to Firestore
-    onProgress({ step: 'save', message: 'Spreman podataka u Firestore...' })
+    // 6. Save to provider
+    onProgress({ step: 'save', message: 'Spreman podataka...' })
 
-    await saveFinancialEntries(allFinancialEntries)
-    await saveInstalledResources(resources)
-    await saveImportIssues(allIssues)
+    await provider.saveFinancialEntries(allFinancialEntries)
+    await provider.saveInstalledResources(resources)
+    await provider.saveImportIssues(allIssues)
 
     const errorCount = allIssues.filter((i) => i.severity === 'error').length
     const warningCount = allIssues.filter((i) => i.severity === 'warning').length
@@ -222,12 +212,12 @@ export async function runImport(
     // Auto-supersede: ako institucija već ima aktivan batch, postavi stari kao superseded
     let supersededId: string | undefined
     if (institutionId) {
-      const existing = await getBatchesByInstitution(institutionId)
+      const existing = await provider.getBatchesByInstitution(institutionId)
       const activeBatch = existing.find((b) => b.isActive && b.id !== batchId && sameBatchScope(b, institutionName, file.name))
       if (activeBatch?.id) {
         supersededId = activeBatch.id
-        await supersedeBatch(activeBatch.id, batchId, institutionId)
-        await addAuditLog({
+        await provider.supersedeBatch(activeBatch.id, batchId, institutionId)
+        await provider.addAuditLog({
           userId: user.uid,
           action: 'supersede_batch',
           entityType: 'importBatch',
@@ -238,12 +228,12 @@ export async function runImport(
       }
     }
 
-    await updateBatch(batchId, {
+    await provider.updateBatch(batchId, {
       processingStatus,
       errorCount,
       warningCount,
       institutionId,
-      isActive: !supersededId ? true : undefined, // supersedeBatch već postavlja isActive
+      isActive: !supersededId ? true : undefined,
       importSummary: {
         sheetsProcessed: financialSheetMap.map((s) => s.name),
         financialEntriesCount: allFinancialEntries.length,
@@ -252,7 +242,7 @@ export async function runImport(
       },
     })
 
-    await addAuditLog({
+    await provider.addAuditLog({
       userId: user.uid,
       action: 'import_complete',
       entityType: 'importBatch',
@@ -272,8 +262,8 @@ export async function runImport(
       institutionName,
     }
   } catch (err) {
-    await updateBatch(batchId, { processingStatus: 'failed' })
-    await addAuditLog({
+    await provider.updateBatch(batchId, { processingStatus: 'failed' })
+    await provider.addAuditLog({
       userId: user.uid,
       action: 'import_failed',
       entityType: 'importBatch',

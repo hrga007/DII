@@ -5,7 +5,7 @@ import {
   previewFile, runImport,
   type FilePreview, type ImportProgress, type ImportResult,
 } from '../services/importService'
-import { getBatches, deleteBatch } from '../services/firestoreService'
+import { getProvider } from '../providers'
 import { useToast } from '../hooks/useToast'
 import { StatusBadge } from '../components/StatusBadge'
 import type { ImportBatch } from '../models/importBatch'
@@ -213,7 +213,7 @@ export function UploadPage() {
   async function handleDeleteBatch(id: string) {
     setDeletingId(id); setConfirmId(null)
     try {
-      await deleteBatch(id)
+      await getProvider().deleteBatch(id)
       setBatches(prev => prev ? prev.filter(b => b.id !== id) : prev)
       showToast('Batch uspješno obrisan', 'success')
     } catch {
@@ -226,7 +226,7 @@ export function UploadPage() {
   // Učitaj batcheve odmah pri mountu
   useEffect(() => {
     setBatchLoad(true)
-    getBatches().then(setBatches).finally(() => setBatchLoad(false))
+    getProvider().getBatches().then(setBatches).finally(() => setBatchLoad(false))
   }, [])
 
   // ── Ažuriranje jednog elementa u redu ──────────────────────────

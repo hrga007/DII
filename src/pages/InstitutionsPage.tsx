@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { getInstitutions } from '../services/firestoreService'
-import { getBatches } from '../services/firestoreService'
+import { getProvider } from '../providers'
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
 import { StatusBadge, ActiveBadge } from '../components/StatusBadge'
@@ -27,7 +26,7 @@ export function InstitutionsPage() {
   const expandedRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    Promise.all([getInstitutions(), getBatches()]).then(([institutions, batches]) => {
+    Promise.all([getProvider().getInstitutions(), getProvider().getBatches()]).then(([institutions, batches]) => {
       const mapped: InstitutionRow[] = institutions.map((inst) => {
         const ibs = batches.filter((b) => b.institutionId === inst.id)
         const activeBatch = ibs.find((b) => b.isActive) ?? null
