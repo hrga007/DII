@@ -17,7 +17,7 @@ const NAV = [
   { to: '/upload',       label: 'Uvoz podataka' },
   { to: '/institutions', label: 'Institucije' },
   { to: '/izvjestaji',   label: 'Izvještaji' },
-  { to: '/audit',        label: 'Audit log' },
+  { to: '/trendovi',     label: 'Trendovi' },
   { to: '/settings',     label: 'Postavke' },
 ]
 
