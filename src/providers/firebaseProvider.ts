@@ -55,4 +55,11 @@ export const firebaseProvider: DataProvider = {
 
   // Paginated
   getBatchesPaginated: fs.getBatchesPaginated,
+
+  // Share Links
+  createShareLink: fs.createShareLink,
+  getShareLinkByToken: fs.getShareLinkByToken,
+  listShareLinks: fs.listShareLinks,
+  deleteShareLink: fs.deleteShareLink,
+  recordShareView: fs.recordShareView,
 }

@@ -87,5 +87,11 @@ export function createCduRestProvider(_config: CduConfig): DataProvider {
     addAuditLog: () => ni('addAuditLog'),
     getAuditLogs: () => ni('getAuditLogs'),
     getBatchesPaginated: () => ni('getBatchesPaginated'),
+
+    createShareLink: () => ni('createShareLink'),
+    getShareLinkByToken: () => ni('getShareLinkByToken'),
+    listShareLinks: () => ni('listShareLinks'),
+    deleteShareLink: () => ni('deleteShareLink'),
+    recordShareView: () => ni('recordShareView'),
   }
 }

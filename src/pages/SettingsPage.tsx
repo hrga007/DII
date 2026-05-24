@@ -15,6 +15,7 @@ import {
   listUsers, createUser, updateRole, removeUser,
   type UserProfile, type Role,
 } from '../services/userService'
+import { ShareLinksAdmin } from '../components/ShareLinksAdmin'
 
 const FB_FIELDS: { key: keyof FirebaseConfig; label: string; placeholder: string }[] = [
   { key: 'apiKey',            label: 'API Key',             placeholder: 'AIzaSy...' },
@@ -107,10 +108,11 @@ function SectionHeader({ title, desc }: { title: string; desc?: string }) {
 }
 
 // ── Tab definitions ───────────────────────────────────────────────
-type SettingsTab = 'korisnici' | 'prikaz' | 'izgled' | 'povezivanje' | 'info'
+type SettingsTab = 'korisnici' | 'share' | 'prikaz' | 'izgled' | 'povezivanje' | 'info'
 
 const TABS: { key: SettingsTab; label: string }[] = [
   { key: 'korisnici',   label: 'Korisnici' },
+  { key: 'share',       label: 'Podijeljeni linkovi' },
   { key: 'prikaz',      label: 'Prikaz' },
   { key: 'izgled',      label: 'Izgled' },
   { key: 'povezivanje', label: 'Povezivanje' },
@@ -520,6 +522,11 @@ export function SettingsPage() {
             )}
           </div>
         )}
+
+        {/* ══════════════════════════════════════════════════════
+            TAB: SHARE LINKS
+        ══════════════════════════════════════════════════════ */}
+        {tab === 'share' && <ShareLinksAdmin />}
 
         {/* ══════════════════════════════════════════════════════
             TAB: PRIKAZ

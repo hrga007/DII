@@ -5,6 +5,8 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import * as XLSX from 'xlsx'
 import { getProvider } from '../providers'
 import type { FinancialEntry, CategoryGroup } from '../models/financialEntry'
+import { ShareModal } from '../components/ShareModal'
+import type { ShareSnapshot } from '../models/shareLink'
 
 const CATEGORIES: CategoryGroup[] = ['CAPEX', 'LICENCE', 'ODRZAVANJE', 'OPEX', 'CLOUD']
 const CAT_LABELS: Record<CategoryGroup, string> = {
@@ -36,6 +38,9 @@ export function ReportsPage() {
   // Sort
   const [sortCol, setSortCol] = useState<SortCol>('Ukupno')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  // Share
+  const [shareOpen, setShareOpen] = useState(false)
 
   const { data: allEntries = [], isLoading: entriesLoading } = useQuery({
     queryKey: ['allFinancialEntries'],
@@ -200,6 +205,12 @@ export function ReportsPage() {
         <h1 className="text-xl font-bold text-gray-800">Izvještaji</h1>
         <div className="flex gap-2">
           <button
+            onClick={() => setShareOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+          >
+            <span>🔗</span> Podijeli
+          </button>
+          <button
             onClick={exportExcel}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors"
           >
@@ -213,6 +224,26 @@ export function ReportsPage() {
           </button>
         </div>
       </div>
+
+      <ShareModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        type="report"
+        defaultTitle={`Izvješće ${year === 'all' ? '' : year}`.trim()}
+        buildSnapshot={(): ShareSnapshot => {
+          const usedInstIds = new Set(filteredEntries.map(e => e.institutionId))
+          return {
+            filters: {
+              year,
+              categories: [...selectedCats],
+              valueType,
+              institutionId: instFilter ?? undefined,
+            },
+            institutions: institutions.filter(i => i.id && usedInstIds.has(i.id)),
+            entries: filteredEntries,
+          }
+        }}
+      />
 
       {/* Filter panel */}
       <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-5 print:hidden">

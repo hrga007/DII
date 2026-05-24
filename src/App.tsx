@@ -18,6 +18,7 @@ const InstitutionsPage = lazy(() => import('./pages/InstitutionsPage').then(m =>
 const InstitutionDetailPage = lazy(() => import('./pages/InstitutionDetailPage').then(m => ({ default: m.InstitutionDetailPage })))
 const ReportsPage = lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })))
 const AuditPage = lazy(() => import('./pages/AuditPage').then(m => ({ default: m.AuditPage })))
+const SharePage = lazy(() => import('./pages/SharePage').then(m => ({ default: m.SharePage })))
 
 const SuspenseFallback = (
   <div className="flex items-center justify-center min-h-screen">
@@ -66,6 +67,9 @@ export default function App() {
       <BrowserRouter basename="/DII/">
         <Suspense fallback={SuspenseFallback}>
           <Routes>
+            {/* Public route — share link, ne zahtijeva autentifikaciju */}
+            <Route path="/share/:token" element={<SharePage />} />
+
             <Route path="/settings" element={
               user
                 ? <Layout user={user}><ErrorBoundary><SettingsPage /></ErrorBoundary></Layout>
