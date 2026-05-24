@@ -26,6 +26,7 @@ import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue, IssueResolutionMethod } from '../models/financialEntry'
 import type { InstalledResource } from '../models/installedResource'
 import type { AuditLog } from '../models/auditLog'
+import type { ShareLink } from '../models/shareLink'
 
 export interface DataProvider {
   /** Naziv implementacije (za debug/UI prikaz). */
@@ -79,4 +80,11 @@ export interface DataProvider {
 
   // ─── Paginated ─────────────────────────────────────────────────
   getBatchesPaginated(params: PaginationParams): Promise<PaginatedResult<ImportBatch>>
+
+  // ─── Share Links ───────────────────────────────────────────────
+  createShareLink(link: ShareLink): Promise<string>
+  getShareLinkByToken(token: string): Promise<ShareLink | null>
+  listShareLinks(): Promise<ShareLink[]>
+  deleteShareLink(id: string): Promise<void>
+  recordShareView(id: string): Promise<void>
 }

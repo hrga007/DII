@@ -9,6 +9,8 @@ import type { InstalledResource } from '../models/installedResource'
 import type { CategoryGroup } from '../models/financialEntry'
 import type { AuditLog, AuditAction } from '../models/auditLog'
 import { StatusBadge, ActiveBadge, SeverityBadge } from '../components/StatusBadge'
+import { ShareModal } from '../components/ShareModal'
+import type { ShareSnapshot } from '../models/shareLink'
 
 const ACTIVITY_LABELS: Record<AuditAction, string> = {
   login:            'Prijava',
@@ -506,6 +508,7 @@ export function InstitutionDetailPage() {
   const [tab, setTab] = useState<Tab>('financije')
   const [resDcFilter, setResDcFilter] = useState('')
   const [resNameFilter, setResNameFilter] = useState('')
+  const [shareOpen, setShareOpen] = useState(false)
   const [issueFilter, setIssueFilter] = useState<'sve' | 'nerijesene' | 'rijesene'>('sve')
   const [diffOpen, setDiffOpen] = useState(false)
   const [activityLogs, setActivityLogs] = useState<AuditLog[]>([])
@@ -635,6 +638,12 @@ export function InstitutionDetailPage() {
             )}
             {institution.dcCount && <span>🖥️ {institution.dcCount} DC</span>}
           </div>
+          <button
+            onClick={() => setShareOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
+          >
+            <span>🔗</span> Podijeli
+          </button>
         </div>
 
         {/* Quick stats */}
@@ -653,6 +662,20 @@ export function InstitutionDetailPage() {
           ))}
         </div>
       </div>
+
+      <ShareModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        type="institution"
+        defaultTitle={`${institution.name} — Pregled`}
+        buildSnapshot={(): ShareSnapshot => ({
+          filters: { institutionId: institution.id },
+          institutions: [institution],
+          batches: batches.filter(b => b.isActive),
+          entries,
+          resources,
+        })}
+      />
 
       {/* Parcijalna greška — Firestore index ili sl. */}
       {loadError?.startsWith('partial:') && (

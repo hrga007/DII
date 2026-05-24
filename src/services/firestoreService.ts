@@ -11,6 +11,9 @@ import {
   Timestamp,
   writeBatch,
   limit,
+  deleteDoc,
+  updateDoc,
+  increment,
 } from 'firebase/firestore'
 import { getFirebaseDb } from '../config/firebase'
 import type { Institution } from '../models/institution'
@@ -18,6 +21,7 @@ import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue, IssueResolutionMethod } from '../models/financialEntry'
 import type { InstalledResource } from '../models/installedResource'
 import type { AuditLog } from '../models/auditLog'
+import type { ShareLink } from '../models/shareLink'
 import type { PaginationParams, PaginatedResult } from '../providers/DataProvider'
 
 function toTimestamp(d: Date): Timestamp {
@@ -551,4 +555,105 @@ export async function getBatchesPaginated(params: PaginationParams): Promise<Pag
   const start = params.page * params.pageSize
   const items = all.slice(start, start + params.pageSize)
   return { items, total: all.length, hasMore: start + params.pageSize < all.length }
+}
+
+// ─── Share Links ─────────────────────────────────────────────────
+function shareToDoc(link: ShareLink): Record<string, unknown> {
+  const { id: _id, ...rest } = link
+  return {
+    ...rest,
+    createdAt: toTimestamp(link.createdAt),
+    expiresAt: toTimestamp(link.expiresAt),
+    lastViewedAt: link.lastViewedAt ? toTimestamp(link.lastViewedAt) : null,
+    snapshot: {
+      ...link.snapshot,
+      institutions: link.snapshot.institutions.map(inst => ({
+        ...inst,
+        createdAt: toTimestamp(inst.createdAt),
+        updatedAt: toTimestamp(inst.updatedAt),
+      })),
+      batches: link.snapshot.batches?.map(b => ({
+        ...b,
+        uploadedAt: toTimestamp(b.uploadedAt),
+      })),
+      entries: link.snapshot.entries.map(e => ({
+        ...e,
+        createdAt: toTimestamp(e.createdAt),
+      })),
+      resources: link.snapshot.resources?.map(r => ({
+        ...r,
+        createdAt: toTimestamp(r.createdAt),
+      })),
+    },
+  }
+}
+
+function shareFromDoc(id: string, data: Record<string, unknown>): ShareLink {
+  const snap = data.snapshot as Record<string, unknown>
+  return {
+    id,
+    token: data.token as string,
+    type: data.type as ShareLink['type'],
+    title: data.title as string,
+    description: data.description as string | undefined,
+    createdAt: fromTimestamp(data.createdAt as Timestamp),
+    createdBy: data.createdBy as string,
+    createdByEmail: data.createdByEmail as string | undefined,
+    expiresAt: fromTimestamp(data.expiresAt as Timestamp),
+    viewCount: (data.viewCount as number) ?? 0,
+    lastViewedAt: data.lastViewedAt ? fromTimestamp(data.lastViewedAt as Timestamp) : null,
+    snapshot: {
+      filters: snap.filters as ShareLink['snapshot']['filters'],
+      institutions: ((snap.institutions as Record<string, unknown>[]) ?? []).map(i => ({
+        ...i,
+        createdAt: fromTimestamp(i.createdAt as Timestamp),
+        updatedAt: fromTimestamp(i.updatedAt as Timestamp),
+      })) as ShareLink['snapshot']['institutions'],
+      batches: ((snap.batches as Record<string, unknown>[]) ?? undefined)?.map(b => ({
+        ...b,
+        uploadedAt: fromTimestamp(b.uploadedAt as Timestamp),
+      })) as ShareLink['snapshot']['batches'],
+      entries: ((snap.entries as Record<string, unknown>[]) ?? []).map(e => ({
+        ...e,
+        createdAt: fromTimestamp(e.createdAt as Timestamp),
+      })) as ShareLink['snapshot']['entries'],
+      resources: ((snap.resources as Record<string, unknown>[]) ?? undefined)?.map(r => ({
+        ...r,
+        createdAt: fromTimestamp(r.createdAt as Timestamp),
+      })) as ShareLink['snapshot']['resources'],
+    },
+  }
+}
+
+export async function createShareLink(link: ShareLink): Promise<string> {
+  const db = getFirebaseDb()
+  const ref = await addDoc(collection(db, 'shareLinks'), shareToDoc(link))
+  return ref.id
+}
+
+export async function getShareLinkByToken(token: string): Promise<ShareLink | null> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(query(collection(db, 'shareLinks'), where('token', '==', token), limit(1)))
+  if (snap.empty) return null
+  const d = snap.docs[0]
+  return shareFromDoc(d.id, d.data())
+}
+
+export async function listShareLinks(): Promise<ShareLink[]> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(query(collection(db, 'shareLinks'), orderBy('createdAt', 'desc')))
+  return snap.docs.map(d => shareFromDoc(d.id, d.data()))
+}
+
+export async function deleteShareLink(id: string): Promise<void> {
+  const db = getFirebaseDb()
+  await deleteDoc(doc(db, 'shareLinks', id))
+}
+
+export async function recordShareView(id: string): Promise<void> {
+  const db = getFirebaseDb()
+  await updateDoc(doc(db, 'shareLinks', id), {
+    viewCount: increment(1),
+    lastViewedAt: toTimestamp(new Date()),
+  })
 }
