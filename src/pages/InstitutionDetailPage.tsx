@@ -11,6 +11,10 @@ import type { AuditLog, AuditAction } from '../models/auditLog'
 import { StatusBadge, ActiveBadge, SeverityBadge } from '../components/StatusBadge'
 import { ShareModal } from '../components/ShareModal'
 import type { ShareSnapshot } from '../models/shareLink'
+import { detectAnomalies } from '../utils/anomalies'
+import { computeQualityScore, gradeColor } from '../utils/dataQuality'
+import { QualityScoreCard } from '../components/QualityScoreCard'
+import { AnomaliesPanel } from '../components/AnomaliesPanel'
 
 const ACTIVITY_LABELS: Record<AuditAction, string> = {
   login:            'Prijava',
@@ -46,7 +50,7 @@ const CAT_LABELS: Record<CategoryGroup, string> = {
 }
 const YEARS = [2024, 2025, 2026, 2027, 2028]
 
-type Tab = 'financije' | 'batches' | 'resursi' | 'greske' | 'aktivnost'
+type Tab = 'financije' | 'batches' | 'resursi' | 'greske' | 'kvaliteta' | 'aktivnost'
 
 // Simple SVG bar chart: realizirano (green) vs planirano (blue) per category
 function BarChart({ entries }: { entries: FinancialEntry[] }) {
@@ -596,11 +600,21 @@ export function InstitutionDetailPage() {
 
   if (!institution) return null
 
+  const anomalies = useMemo(
+    () => detectAnomalies(entries, resources),
+    [entries, resources],
+  )
+  const quality = useMemo(
+    () => computeQualityScore({ institution: institution!, batches, entries, resources, issues }),
+    [institution, batches, entries, resources, issues],
+  )
+
   const TABS: { key: Tab; label: string; count?: number }[] = [
     { key: 'financije', label: 'Financijski pregled' },
     { key: 'batches', label: 'Batch-evi', count: batches.length },
     { key: 'resursi', label: 'Resursi', count: resources.length },
     { key: 'greske', label: 'Greške i upozorenja', count: issues.filter((i) => !i.resolvedAt).length || undefined },
+    { key: 'kvaliteta', label: 'Kvaliteta podataka', count: anomalies.length || undefined },
     { key: 'aktivnost', label: 'Aktivnost' },
   ]
 
@@ -644,6 +658,18 @@ export function InstitutionDetailPage() {
           >
             <span>🔗</span> Podijeli
           </button>
+          {(() => {
+            const c = gradeColor(quality.grade)
+            return (
+              <button
+                onClick={() => setTab('kvaliteta')}
+                className={`shrink-0 px-3 py-2 rounded-xl ${c.bg} ${c.text} ${c.ring} ring-1 text-sm font-bold hover:opacity-80 transition-opacity`}
+                title={`Ocjena kvalitete podataka: ${quality.score}/100`}
+              >
+                {quality.grade} <span className="font-normal opacity-70 text-xs">{quality.score}</span>
+              </button>
+            )
+          })()}
         </div>
 
         {/* Quick stats */}
@@ -937,6 +963,20 @@ export function InstitutionDetailPage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Kvaliteta podataka */}
+      {tab === 'kvaliteta' && (
+        <div className="space-y-4">
+          <QualityScoreCard result={quality} />
+          <div>
+            <p className="text-sm font-semibold text-gray-700 mb-2 px-1">
+              Detektirane nepravilnosti
+              {anomalies.length > 0 && <span className="ml-1.5 text-xs font-normal text-gray-400">({anomalies.length})</span>}
+            </p>
+            <AnomaliesPanel anomalies={anomalies} />
           </div>
         </div>
       )}
