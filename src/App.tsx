@@ -18,6 +18,7 @@ const InstitutionsPage = lazy(() => import('./pages/InstitutionsPage').then(m =>
 const InstitutionDetailPage = lazy(() => import('./pages/InstitutionDetailPage').then(m => ({ default: m.InstitutionDetailPage })))
 const ReportsPage = lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })))
 const AuditPage = lazy(() => import('./pages/AuditPage').then(m => ({ default: m.AuditPage })))
+const TrendsPage = lazy(() => import('./pages/TrendsPage').then(m => ({ default: m.TrendsPage })))
 const SharePage = lazy(() => import('./pages/SharePage').then(m => ({ default: m.SharePage })))
 
 const SuspenseFallback = (
@@ -105,6 +106,11 @@ export default function App() {
             <Route path="/izvjestaji" element={
               <RequireAuth user={user}>
                 <Layout user={user!}><ErrorBoundary><ReportsPage /></ErrorBoundary></Layout>
+              </RequireAuth>
+            } />
+            <Route path="/trendovi" element={
+              <RequireAuth user={user}>
+                <Layout user={user!}><ErrorBoundary><TrendsPage /></ErrorBoundary></Layout>
               </RequireAuth>
             } />
             <Route path="/audit" element={
