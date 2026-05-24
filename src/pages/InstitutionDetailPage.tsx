@@ -569,6 +569,17 @@ export function InstitutionDetailPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, id])
 
+  const anomalies = useMemo(
+    () => entries.length > 0 ? detectAnomalies(entries, resources) : [],
+    [entries, resources],
+  )
+  const quality = useMemo(
+    () => institution
+      ? computeQualityScore({ institution, batches, entries, resources, issues })
+      : null,
+    [institution, batches, entries, resources, issues],
+  )
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -598,16 +609,7 @@ export function InstitutionDetailPage() {
     )
   }
 
-  if (!institution) return null
-
-  const anomalies = useMemo(
-    () => detectAnomalies(entries, resources),
-    [entries, resources],
-  )
-  const quality = useMemo(
-    () => computeQualityScore({ institution: institution!, batches, entries, resources, issues }),
-    [institution, batches, entries, resources, issues],
-  )
+  if (!institution || !quality) return null
 
   const TABS: { key: Tab; label: string; count?: number }[] = [
     { key: 'financije', label: 'Financijski pregled' },
