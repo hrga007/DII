@@ -390,7 +390,7 @@ export function DashboardPage() {
   const activeInstIds = new Set(activeBatches.map(b => b.institutionId).filter(Boolean))
 
   // Dynamic registry stats: count institutions linked to registry with active batch
-  const registryLinked = allInstitutions.filter(i => i.registryIndex != null && activeInstIds.has(i.id)).length
+  const registryLinked = allInstitutions.filter(i => i.registryIndex != null && i.id != null && activeInstIds.has(i.id)).length
 
   const totalErrors   = activeBatches.reduce((s, b) => s + b.errorCount, 0)
   const totalWarnings = activeBatches.reduce((s, b) => s + b.warningCount, 0)
