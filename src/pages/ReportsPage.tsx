@@ -232,13 +232,14 @@ export function ReportsPage() {
         defaultTitle={`Izvješće ${year === 'all' ? '' : year}`.trim()}
         buildSnapshot={(): ShareSnapshot => {
           const usedInstIds = new Set(filteredEntries.map(e => e.institutionId))
+          const filters: ShareSnapshot['filters'] = {
+            year,
+            categories: [...selectedCats],
+            valueType,
+          }
+          if (instFilter) filters.institutionId = instFilter
           return {
-            filters: {
-              year,
-              categories: [...selectedCats],
-              valueType,
-              institutionId: instFilter ?? undefined,
-            },
+            filters,
             institutions: institutions.filter(i => i.id && usedInstIds.has(i.id)),
             entries: filteredEntries,
           }
