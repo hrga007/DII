@@ -16,6 +16,7 @@ import {
   increment,
 } from 'firebase/firestore'
 import { getFirebaseDb } from '../config/firebase'
+import { findBestMatch } from '../utils/registryMatcher'
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue, IssueResolutionMethod } from '../models/financialEntry'
@@ -107,21 +108,43 @@ export async function upsertInstitution(inst: Institution): Promise<string> {
   const db = getFirebaseDb()
   const q = query(collection(db, 'institutions'), where('oib', '==', inst.oib))
   const snap = await getDocs(q)
+
+  const withRegistry = { ...inst }
   if (!snap.empty) {
+    const existing = snap.docs[0].data() as Partial<Institution>
+    // Keep existing registryIndex; don't overwrite with undefined from import
+    if (withRegistry.registryIndex === undefined && existing.registryIndex !== undefined) {
+      withRegistry.registryIndex = existing.registryIndex
+    }
     const id = snap.docs[0].id
     await setDoc(doc(db, 'institutions', id), {
-      ...inst,
+      ...withRegistry,
       createdAt: toTimestamp(inst.createdAt),
       updatedAt: toTimestamp(new Date()),
     })
     return id
   }
+
+  // New institution: try auto-matching to registry if not explicitly set
+  if (withRegistry.registryIndex === undefined || withRegistry.registryIndex === null) {
+    const match = findBestMatch(inst.name)
+    if (match) withRegistry.registryIndex = match.index
+  }
+
   const ref = await addDoc(collection(db, 'institutions'), {
-    ...inst,
+    ...withRegistry,
     createdAt: toTimestamp(inst.createdAt),
     updatedAt: toTimestamp(new Date()),
   })
   return ref.id
+}
+
+export async function updateInstitutionRegistryIndex(
+  institutionId: string,
+  registryIndex: number | null,
+): Promise<void> {
+  const db = getFirebaseDb()
+  await updateDoc(doc(db, 'institutions', institutionId), { registryIndex })
 }
 
 export async function getInstitutions(): Promise<Institution[]> {

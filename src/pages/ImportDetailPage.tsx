@@ -12,6 +12,9 @@ import { StatusBadge, ActiveBadge, SeverityBadge } from '../components/StatusBad
 import { exportToExcel, exportToCsv } from '../utils/exportUtils'
 import { getAppSettings } from '../hooks/useAppSettings'
 import { validateOib, formatOibError } from '../utils/oibValidator'
+import { RegistryLinkModal } from '../components/RegistryLinkModal'
+import { SUBMISSION_REGISTRY } from '../data/submissionRegistry'
+import { findCandidates } from '../utils/registryMatcher'
 
 type Tab = 'financije' | 'resursi' | 'issues'
 
@@ -394,6 +397,7 @@ export function ImportDetailPage() {
   const location = useLocation()
   const navState = location.state as { from?: string; institutionId?: string } | null
   const [batch, setBatch] = useState<ImportBatch | null>(null)
+  const [institution, setInstitution] = useState<Institution | null>(null)
   const [entries, setEntries] = useState<FinancialEntry[]>([])
   const [issues, setIssues] = useState<ImportIssue[]>([])
   const [resources, setResources] = useState<InstalledResource[]>([])
@@ -406,6 +410,7 @@ export function ImportDetailPage() {
   const [activating, setActivating] = useState(false)
   const [showNormalize, setShowNormalize] = useState(false)
   const [tipAIssue, setTipAIssue] = useState<ImportIssue | null>(null)
+  const [showRegistryModal, setShowRegistryModal] = useState(false)
 
   async function reload() {
     if (!id) return
@@ -413,6 +418,10 @@ export function ImportDetailPage() {
       getProvider().getBatch(id), getProvider().getFinancialEntries(id), getProvider().getImportIssues(id), getProvider().getInstalledResources(id),
     ])
     setBatch(b); setEntries(e); setIssues(iss); setResources(res)
+    if (b?.institutionId) {
+      const inst = await getProvider().getInstitutionById(b.institutionId)
+      setInstitution(inst)
+    }
   }
 
   useEffect(() => {
@@ -491,6 +500,46 @@ export function ImportDetailPage() {
       {/* ── Panel: Poveži instituciju ── */}
       {!batch.institutionId && (
         <LinkInstitutionPanel batchId={id!} onLinked={reload} />
+      )}
+
+      {/* ── Banner: Uparivanje s registrom dostave ── */}
+      {institution && institution.registryIndex == null && (() => {
+        const instName = institution.name || batch.importSummary?.institutionName || ''
+        const topCandidate = findCandidates(instName, 1)[0]
+        return (
+          <div className="mb-4 flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">
+            <span className="text-lg shrink-0 mt-0.5">🔗</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-blue-800">
+                Institucija nije uparena s registrom dostave
+              </p>
+              {topCandidate && topCandidate.score >= 0.4 && (
+                <p className="text-xs text-blue-600 mt-0.5">
+                  Moguće podudaranje: <span className="font-medium">{topCandidate.entry.name}</span>
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => setShowRegistryModal(true)}
+              className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium"
+            >
+              Upari
+            </button>
+          </div>
+        )
+      })()}
+
+      {/* ── Modal: Registar uparivanje ── */}
+      {showRegistryModal && institution && (
+        <RegistryLinkModal
+          institutionName={institution.name || batch.importSummary?.institutionName || ''}
+          currentRegistryIndex={institution.registryIndex}
+          onConfirm={async (idx) => {
+            await getProvider().updateInstitutionRegistryIndex(institution.id!, idx)
+            setInstitution(prev => prev ? { ...prev, registryIndex: idx } : prev)
+          }}
+          onClose={() => setShowRegistryModal(false)}
+        />
       )}
 
       {/* ── Header kartica ── */}

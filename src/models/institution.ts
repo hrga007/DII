@@ -6,6 +6,7 @@ export interface Institution {
   contactEmail: string
   dcCount: string
   notes?: string
+  registryIndex?: number | null
   createdAt: Date
   updatedAt: Date
 }

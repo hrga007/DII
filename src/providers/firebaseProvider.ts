@@ -17,6 +17,7 @@ export const firebaseProvider: DataProvider = {
   upsertInstitution: fs.upsertInstitution,
   getInstitutions: fs.getInstitutions,
   getInstitutionById: fs.getInstitutionById,
+  updateInstitutionRegistryIndex: fs.updateInstitutionRegistryIndex,
 
   // Batches
   createBatch: fs.createBatch,

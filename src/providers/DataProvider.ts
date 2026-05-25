@@ -36,6 +36,7 @@ export interface DataProvider {
   upsertInstitution(inst: Institution): Promise<string>
   getInstitutions(): Promise<Institution[]>
   getInstitutionById(id: string): Promise<Institution | null>
+  updateInstitutionRegistryIndex(institutionId: string, registryIndex: number | null): Promise<void>
 
   // ─── Import Batches ────────────────────────────────────────────
   createBatch(batch: ImportBatch): Promise<string>
