@@ -37,6 +37,7 @@ export interface DataProvider {
   getInstitutions(): Promise<Institution[]>
   getInstitutionById(id: string): Promise<Institution | null>
   updateInstitutionRegistryIndex(institutionId: string, registryIndex: number | null): Promise<void>
+  bulkAutoMatchRegistryIndex(): Promise<{ matched: number; skipped: number; alreadyLinked: number }>
 
   // ─── Import Batches ────────────────────────────────────────────
   createBatch(batch: ImportBatch): Promise<string>
