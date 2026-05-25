@@ -6,7 +6,7 @@ import { getProvider } from '../providers'
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
 import { StatusBadge, ActiveBadge } from '../components/StatusBadge'
-import { SUBMISSION_REGISTRY, type DeliveryStatus } from '../data/submissionRegistry'
+import { SUBMISSION_REGISTRY } from '../data/submissionRegistry'
 import { RegistryLinkModal } from '../components/RegistryLinkModal'
 
 interface InstitutionRow {
@@ -50,7 +50,7 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
     let uApp = 0, nijeUpareno = 0
     SUBMISSION_REGISTRY.forEach((_, idx) => {
       const inst = linkedMap.get(idx)
-      if (inst && activeBatchSet.has(inst.id)) uApp++
+      if (inst && inst.id != null && activeBatchSet.has(inst.id)) uApp++
       else nijeUpareno++
     })
     return { total: SUBMISSION_REGISTRY.length, uApp, nijeUpareno }
@@ -63,7 +63,7 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
     return SUBMISSION_REGISTRY
       .map((entry, index) => {
         const inst = linkedMap.get(index)
-        const hasActiveBatch = inst ? activeBatchSet.has(inst.id) : false
+        const hasActiveBatch = inst?.id != null ? activeBatchSet.has(inst.id) : false
         return { index, entry, inst, hasActiveBatch }
       })
       .filter(({ entry, inst, hasActiveBatch }) => {

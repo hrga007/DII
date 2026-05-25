@@ -13,7 +13,6 @@ import { exportToExcel, exportToCsv } from '../utils/exportUtils'
 import { getAppSettings } from '../hooks/useAppSettings'
 import { validateOib, formatOibError } from '../utils/oibValidator'
 import { RegistryLinkModal } from '../components/RegistryLinkModal'
-import { SUBMISSION_REGISTRY } from '../data/submissionRegistry'
 import { findCandidates } from '../utils/registryMatcher'
 
 type Tab = 'financije' | 'resursi' | 'issues'
