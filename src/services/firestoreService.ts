@@ -558,9 +558,26 @@ export async function getBatchesPaginated(params: PaginationParams): Promise<Pag
 }
 
 // ─── Share Links ─────────────────────────────────────────────────
+function stripUndefinedDeep(value: unknown): unknown {
+  if (value === undefined) return undefined
+  if (value === null || typeof value !== 'object') return value
+  if (value instanceof Timestamp || value instanceof Date) return value
+  if (Array.isArray(value)) {
+    return value
+      .map(stripUndefinedDeep)
+      .filter(item => item !== undefined)
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => [key, stripUndefinedDeep(item)] as const)
+      .filter(([, item]) => item !== undefined)
+  )
+}
+
 function shareToDoc(link: ShareLink): Record<string, unknown> {
   const { id: _id, ...rest } = link
-  return {
+  return stripUndefinedDeep({
     ...rest,
     createdAt: toTimestamp(link.createdAt),
     expiresAt: toTimestamp(link.expiresAt),
@@ -585,7 +602,7 @@ function shareToDoc(link: ShareLink): Record<string, unknown> {
         createdAt: toTimestamp(r.createdAt),
       })),
     },
-  }
+  }) as Record<string, unknown>
 }
 
 function shareFromDoc(id: string, data: Record<string, unknown>): ShareLink {
