@@ -6,6 +6,7 @@ import { getProvider } from '../providers'
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
 import { StatusBadge, ActiveBadge } from '../components/StatusBadge'
+import { SUBMISSION_REGISTRY, REGISTRY_STATS, type DeliveryStatus } from '../data/submissionRegistry'
 
 interface InstitutionRow {
   institution: Institution
@@ -17,6 +18,134 @@ interface InstitutionRow {
 
 type FilterKey = 'sve' | 'greske' | 'nema_aktivnog' | 'nema_batcha'
 type SortKey = 'batches_desc' | 'abecedno' | 'datum_desc' | 'greske_desc'
+type PageView = 'uvezeni' | 'registar'
+
+const DELIVERY_STYLE: Record<DeliveryStatus, { bg: string; text: string; dot: string; label: string }> = {
+  DA:    { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'Dostavljeno' },
+  NE:    { bg: 'bg-red-50',     text: 'text-red-700',     dot: 'bg-red-500',     label: 'Nije dostavljeno' },
+  DOPIS: { bg: 'bg-yellow-50',  text: 'text-yellow-700',  dot: 'bg-yellow-400',  label: 'Samo dopis' },
+}
+
+function RegistryView() {
+  const [search, setSearch]   = useState('')
+  const [filter, setFilter]   = useState<DeliveryStatus | 'sve'>('sve')
+
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return SUBMISSION_REGISTRY.filter(e => {
+      const matchText = !q || e.name.toLowerCase().includes(q) || e.email.toLowerCase().includes(q)
+      const matchFilter = filter === 'sve' || e.delivery === filter
+      return matchText && matchFilter
+    })
+  }, [search, filter])
+
+  const pct = Math.round((REGISTRY_STATS.da / REGISTRY_STATS.total) * 100)
+
+  return (
+    <div>
+      {/* Progress summary */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-semibold text-gray-700">Dostava podataka — pregled</p>
+          <span className="text-sm font-bold text-gray-800">{REGISTRY_STATS.da} / {REGISTRY_STATS.total}</span>
+        </div>
+        <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden mb-3">
+          <div
+            className="h-full bg-emerald-500 rounded-full transition-all duration-700"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <div className="grid grid-cols-3 gap-3 text-center">
+          {([
+            { key: 'DA'    as DeliveryStatus, label: 'Dostavilo',       value: REGISTRY_STATS.da,    color: 'text-emerald-700' },
+            { key: 'DOPIS' as DeliveryStatus, label: 'Samo dopis',      value: REGISTRY_STATS.dopis, color: 'text-yellow-700'  },
+            { key: 'NE'    as DeliveryStatus, label: 'Nije dostavilo',  value: REGISTRY_STATS.ne,    color: 'text-red-700'     },
+          ]).map(({ label, value, color }) => (
+            <div key={label}>
+              <p className={`text-xl font-bold ${color}`}>{value}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="flex gap-1.5 flex-wrap">
+          {([
+            { key: 'sve'   as const, label: 'Sve' },
+            { key: 'DA'    as const, label: 'Dostavilo' },
+            { key: 'DOPIS' as const, label: 'Samo dopis' },
+            { key: 'NE'    as const, label: 'Nije dostavilo' },
+          ]).map(({ key, label }) => {
+            const count = key === 'sve' ? REGISTRY_STATS.total
+              : key === 'DA' ? REGISTRY_STATS.da
+              : key === 'DOPIS' ? REGISTRY_STATS.dopis
+              : REGISTRY_STATS.ne
+            return (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                  filter === key
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {label} <span className="opacity-70">({count})</span>
+              </button>
+            )
+          })}
+        </div>
+        <div className="relative ml-auto">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Pretraži naziv ili email..."
+            className="pl-8 pr-4 py-1.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
+          />
+        </div>
+      </div>
+
+      {/* List */}
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        {visible.length === 0 ? (
+          <p className="p-10 text-center text-gray-400 text-sm">Nema rezultata</p>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {visible.map((entry, i) => {
+              const s = DELIVERY_STYLE[entry.delivery]
+              return (
+                <div key={i} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50">
+                  <span className={`shrink-0 w-2 h-2 rounded-full ${s.dot}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{entry.name}</p>
+                    {entry.email && (
+                      <a
+                        href={`mailto:${entry.email}`}
+                        className="text-xs text-blue-600 hover:underline truncate block"
+                      >
+                        {entry.email}
+                      </a>
+                    )}
+                  </div>
+                  <span className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${s.bg} ${s.text}`}>
+                    {s.label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+      {visible.length > 0 && (
+        <p className="text-xs text-gray-400 mt-2 text-right">{visible.length} tijela</p>
+      )}
+    </div>
+  )
+}
 
 export function filterAndSortRows(
   rows: InstitutionRow[],
@@ -46,6 +175,7 @@ export function filterAndSortRows(
 export function InstitutionsPage() {
   usePageTitle('Institucije')
   const location = useLocation()
+  const [view, setView] = useState<PageView>('uvezeni')
   const [expanded, setExpanded] = useState<string | null>(
     (location.state as { expandId?: string } | null)?.expandId ?? null
   )
@@ -105,17 +235,44 @@ export function InstitutionsPage() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
         <h1 className="text-xl font-bold text-gray-800">Institucije</h1>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Pretraži naziv ili OIB..."
-            className="pl-8 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-64"
-          />
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex rounded-xl border border-gray-200 bg-gray-50 p-0.5 gap-0.5">
+            {([
+              { key: 'uvezeni' as PageView, label: 'Uvezeni podaci' },
+              { key: 'registar' as PageView, label: 'Registar dostave' },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setView(key)}
+                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                  view === key
+                    ? 'bg-white text-gray-800 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {view === 'uvezeni' && (
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Pretraži naziv ili OIB..."
+                className="pl-8 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-64"
+              />
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Registar dostave view */}
+      {view === 'registar' && <RegistryView />}
+      {view === 'uvezeni' && (<>
 
       {/* Filters + sort */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -181,8 +338,7 @@ export function InstitutionsPage() {
           <p className="font-medium">{search ? 'Nema rezultata pretrage' : 'Nema institucija'}</p>
           <p className="text-sm mt-1">Institucije se kreiraju automatski pri uvozu Excel datoteka</p>
         </div>
-      ) : (
-        <div className="space-y-3">
+      ) : (<div className="space-y-3">
           {filtered.map((row) => {
             const id = row.institution.id!
             const isOpen = expanded === id
@@ -338,6 +494,7 @@ export function InstitutionsPage() {
           })}
         </div>
       )}
+      </>)}
     </div>
   )
 }

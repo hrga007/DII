@@ -10,6 +10,7 @@ import { SeverityBadge } from '../components/StatusBadge'
 import { getAppSettings } from '../hooks/useAppSettings'
 import { currentUser } from '../services/authService'
 import { validateOib, formatOibError } from '../utils/oibValidator'
+import { REGISTRY_STATS } from '../data/submissionRegistry'
 
 const YEARS = [2024, 2025, 2026, 2027, 2028]
 
@@ -422,7 +423,7 @@ export function DashboardPage() {
       <h1 className="text-xl font-bold mb-5" style={{ color: 'var(--t1)' }}>Dashboard</h1>
 
       {/* Stat kartice */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <StatCard label="Batch-evi"   value={activeBatches.length} color="blue" />
         <StatCard label="Institucije" value={institutions}   color="green" />
         <StatCard
@@ -438,6 +439,30 @@ export function DashboardPage() {
           onClick={totalWarnings > 0 ? () => setModal('warning') : undefined}
         />
       </div>
+
+      {/* Dostava podataka — summary */}
+      {(() => {
+        const pct = Math.round((REGISTRY_STATS.da / REGISTRY_STATS.total) * 100)
+        return (
+          <Link to="/institutions" state={{ view: 'registar' }} className="block bg-white rounded-2xl border border-gray-200 px-5 py-4 mb-6 hover:bg-gray-50 transition-colors group">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-gray-700">Dostava podataka</p>
+              <span className="text-xs text-gray-400 group-hover:text-blue-600 transition-colors">Prikaži registar →</span>
+            </div>
+            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
+              <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
+            </div>
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>
+                <span className="font-semibold text-emerald-700">{REGISTRY_STATS.da}</span> dostavilo ·{' '}
+                <span className="font-semibold text-yellow-600">{REGISTRY_STATS.dopis}</span> samo dopis ·{' '}
+                <span className="font-semibold text-red-600">{REGISTRY_STATS.ne}</span> nije dostavilo
+              </span>
+              <span className="font-semibold text-gray-700">{pct}%</span>
+            </div>
+          </Link>
+        )
+      })()}
 
       {/* Issues modal */}
       {modal && (
