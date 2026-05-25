@@ -23,17 +23,123 @@ type PageView = 'uvezeni' | 'registar'
 
 type RegistryFilter = 'sve' | 'u_aplikaciji' | 'nije_upareno'
 
+interface AutoMatchResult {
+  matched: number
+  skipped: number
+  alreadyLinked: number
+}
+
+interface InstitutionPickerModalProps {
+  registryIndex: number
+  institutions: Institution[]
+  onConfirm: (institutionId: string) => Promise<void>
+  onClose: () => void
+}
+
+function InstitutionPickerModal({ registryIndex, institutions, onConfirm, onClose }: InstitutionPickerModalProps) {
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const entry = SUBMISSION_REGISTRY[registryIndex]
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return institutions.filter(i => !q || i.name.toLowerCase().includes(q) || i.oib.includes(q))
+  }, [search, institutions])
+
+  async function handleSave() {
+    if (!selected) return
+    setSaving(true)
+    try {
+      await onConfirm(selected)
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" style={{ maxHeight: 'min(90vh, 600px)' }}>
+        <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+          <div>
+            <h2 className="text-base font-bold text-gray-800">Poveži instituciju s registrom</h2>
+            <p className="text-xs text-gray-400 mt-0.5 max-w-xs truncate">Registar: <span className="font-medium text-gray-600">{entry?.name}</span></p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg">×</button>
+        </div>
+
+        <div className="px-5 py-3 border-b border-gray-100 shrink-0">
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Pretraži institucije..."
+            className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            autoFocus
+          />
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-2">
+          {filtered.length === 0 ? (
+            <p className="py-8 text-center text-sm text-gray-400">Nema institucija</p>
+          ) : (
+            <div className="space-y-1">
+              {filtered.map(inst => (
+                <button
+                  key={inst.id}
+                  onClick={() => setSelected(inst.id!)}
+                  className={`w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                    selected === inst.id
+                      ? 'bg-blue-50 border border-blue-400'
+                      : 'hover:bg-gray-50 border border-transparent'
+                  }`}
+                >
+                  <span className="flex-1 text-sm text-gray-800 truncate">{inst.name}</span>
+                  <span className="text-xs text-gray-400">OIB: {inst.oib}</span>
+                  {selected === inst.id && <span className="text-blue-600">✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-100 shrink-0 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="text-sm px-4 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+            Odustani
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!selected || saving}
+            className="text-sm px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium"
+          >
+            {saving ? 'Sprema…' : 'Poveži'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface RegistryViewProps {
   institutions: Institution[]
   batches: ImportBatch[]
   onRequestLink: (institution: Institution) => void
+  onRequestLinkEntry: (registryIndex: number) => void
+  onAutoMatch: () => Promise<AutoMatchResult>
 }
 
-function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProps) {
+function RegistryView({ institutions, batches, onRequestLink, onRequestLinkEntry, onAutoMatch }: RegistryViewProps) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<RegistryFilter>('sve')
+  const [autoMatchState, setAutoMatchState] = useState<'idle' | 'running' | 'done'>('idle')
+  const [autoMatchResult, setAutoMatchResult] = useState<AutoMatchResult | null>(null)
 
-  // Build lookup: registryIndex → institution
   const linkedMap = useMemo(() => {
     const m = new Map<number, Institution>()
     institutions.forEach(inst => {
@@ -42,10 +148,8 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
     return m
   }, [institutions])
 
-  // For each institution, find if it has an active batch
   const activeBatchSet = useMemo(() => new Set(batches.filter(b => b.isActive).map(b => b.institutionId)), [batches])
 
-  // Compute dynamic stats
   const stats = useMemo(() => {
     let uApp = 0, nijeUpareno = 0
     SUBMISSION_REGISTRY.forEach((_, idx) => {
@@ -78,6 +182,18 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
       })
   }, [search, filter, linkedMap, activeBatchSet])
 
+  async function handleAutoMatch() {
+    setAutoMatchState('running')
+    setAutoMatchResult(null)
+    try {
+      const result = await onAutoMatch()
+      setAutoMatchResult(result)
+      setAutoMatchState('done')
+    } catch {
+      setAutoMatchState('idle')
+    }
+  }
+
   return (
     <div>
       {/* Progress summary */}
@@ -89,7 +205,7 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
         <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden mb-3">
           <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
         </div>
-        <div className="grid grid-cols-2 gap-3 text-center">
+        <div className="grid grid-cols-2 gap-3 text-center mb-4">
           <div>
             <p className="text-xl font-bold text-emerald-700">{stats.uApp}</p>
             <p className="text-xs text-gray-400 mt-0.5">Upareno s aktivnim uploadom</p>
@@ -99,6 +215,32 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
             <p className="text-xs text-gray-400 mt-0.5">Nije upareno / nema uploada</p>
           </div>
         </div>
+
+        {/* Auto-match section */}
+        {autoMatchResult ? (
+          <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 flex items-center justify-between">
+            <div className="text-sm text-emerald-800">
+              <span className="font-semibold">Automatsko uparivanje završeno:</span>{' '}
+              {autoMatchResult.matched} novih uparivanja,{' '}
+              {autoMatchResult.skipped} nije prepoznato,{' '}
+              {autoMatchResult.alreadyLinked} već upareno
+            </div>
+            <button
+              onClick={() => { setAutoMatchResult(null); setAutoMatchState('idle') }}
+              className="text-emerald-600 hover:text-emerald-800 text-lg ml-3 shrink-0"
+            >
+              ×
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleAutoMatch}
+            disabled={autoMatchState === 'running'}
+            className="w-full text-sm py-2 rounded-xl border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 transition-colors font-medium"
+          >
+            {autoMatchState === 'running' ? '⏳ Uparivanje u tijeku…' : '🔗 Pokreni automatsko uparivanje'}
+          </button>
+        )}
       </div>
 
       {/* Filters + search */}
@@ -161,22 +303,25 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
                   </div>
                   <div className="shrink-0 flex items-center gap-2">
                     {active ? (
-                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
+                      <button
+                        onClick={() => onRequestLink(inst)}
+                        className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                      >
                         ✓ U aplikaciji
-                      </span>
+                      </button>
                     ) : linked ? (
-                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700">
+                      <button
+                        onClick={() => onRequestLink(inst)}
+                        className="text-xs font-medium px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition-colors"
+                      >
                         Upareno, nema uploada
-                      </span>
+                      </button>
                     ) : (
                       <button
-                        onClick={() => {
-                          const candidate = institutions.find(i => i.registryIndex == null)
-                          if (candidate) onRequestLink(candidate)
-                        }}
-                        className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                        onClick={() => onRequestLinkEntry(index)}
+                        className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition-colors"
                       >
-                        Nije upareno
+                        Upari instituciju
                       </button>
                     )}
                   </div>
@@ -229,6 +374,7 @@ export function InstitutionsPage() {
   const [filter, setFilter] = useState<FilterKey>('sve')
   const [sort, setSort] = useState<SortKey>('batches_desc')
   const [linkTarget, setLinkTarget] = useState<Institution | null>(null)
+  const [registryTarget, setRegistryTarget] = useState<number | null>(null)
   const expandedRef = useRef<HTMLDivElement | null>(null)
 
   const { data: institutions = [], isLoading: instLoading } = useQuery({
@@ -317,8 +463,7 @@ export function InstitutionsPage() {
         </div>
       </div>
 
-      {/* Registar dostave view */}
-      {/* Linking modal */}
+      {/* Linking modal — from institution to registry entry */}
       {linkTarget && (
         <RegistryLinkModal
           institutionName={linkTarget.name}
@@ -331,11 +476,30 @@ export function InstitutionsPage() {
         />
       )}
 
+      {/* Picker modal — from registry entry to institution */}
+      {registryTarget !== null && (
+        <InstitutionPickerModal
+          registryIndex={registryTarget}
+          institutions={institutions}
+          onConfirm={async (instId) => {
+            await getProvider().updateInstitutionRegistryIndex(instId, registryTarget)
+            qc.invalidateQueries({ queryKey: ['institutions'] })
+          }}
+          onClose={() => setRegistryTarget(null)}
+        />
+      )}
+
       {view === 'registar' && (
         <RegistryView
           institutions={institutions}
           batches={batches}
           onRequestLink={setLinkTarget}
+          onRequestLinkEntry={setRegistryTarget}
+          onAutoMatch={async () => {
+            const result = await getProvider().bulkAutoMatchRegistryIndex()
+            qc.invalidateQueries({ queryKey: ['institutions'] })
+            return result
+          }}
         />
       )}
       {view === 'uvezeni' && (<>

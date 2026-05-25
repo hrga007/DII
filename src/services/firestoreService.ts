@@ -147,6 +147,45 @@ export async function updateInstitutionRegistryIndex(
   await updateDoc(doc(db, 'institutions', institutionId), { registryIndex })
 }
 
+export async function bulkAutoMatchRegistryIndex(): Promise<{
+  matched: number
+  skipped: number
+  alreadyLinked: number
+}> {
+  const institutions = await getInstitutions()
+  const db = getFirebaseDb()
+
+  let matched = 0
+  let skipped = 0
+  let alreadyLinked = 0
+  const toUpdate: { id: string; registryIndex: number }[] = []
+
+  for (const inst of institutions) {
+    if (inst.registryIndex != null) {
+      alreadyLinked++
+      continue
+    }
+    const match = findBestMatch(inst.name)
+    if (match) {
+      toUpdate.push({ id: inst.id!, registryIndex: match.index })
+      matched++
+    } else {
+      skipped++
+    }
+  }
+
+  const CHUNK = 400
+  for (let i = 0; i < toUpdate.length; i += CHUNK) {
+    const wb = writeBatch(db)
+    toUpdate.slice(i, i + CHUNK).forEach(({ id, registryIndex }) => {
+      wb.update(doc(db, 'institutions', id), { registryIndex })
+    })
+    await wb.commit()
+  }
+
+  return { matched, skipped, alreadyLinked }
+}
+
 export async function getInstitutions(): Promise<Institution[]> {
   const db = getFirebaseDb()
   const snap = await getDocs(query(collection(db, 'institutions'), orderBy('name')))
