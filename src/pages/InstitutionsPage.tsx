@@ -20,7 +20,7 @@ interface InstitutionRow {
 type FilterKey = 'sve' | 'greske' | 'nema_aktivnog' | 'nema_batcha'
 type SortKey = 'batches_desc' | 'abecedno' | 'datum_desc' | 'greske_desc'
 type PageView = 'uvezeni' | 'registar'
-type RegistryFilter = 'sve' | 'u_aplikaciji' | 'nije_upareno'
+type RegistryFilter = 'sve' | 'u_aplikaciji' | 'prepoznato' | 'nije_upareno'
 
 const PAGE_SIZE = 50
 
@@ -53,13 +53,16 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
 
   const stats = useMemo(() => {
     if (!registry) return null
-    let uApp = 0
+    let uApp = 0, uRegistru = 0
     for (const entry of registry.entries) {
       const inst = institutionByOib.get(entry.oib)
-      if (inst?.id != null && activeBatchSet.has(inst.id)) uApp++
+      if (inst) {
+        uRegistru++
+        if (inst.id != null && activeBatchSet.has(inst.id)) uApp++
+      }
     }
     const total = registry.entries.length
-    return { total, uApp, nijeUpareno: total - uApp }
+    return { total, uApp, uRegistru, nijeUpareno: total - uApp }
   }, [registry, institutionByOib, activeBatchSet])
 
   const visibleFiltered = useMemo(() => {
@@ -74,7 +77,8 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
       .filter(({ entry, inst, hasActiveBatch }) => {
         if (pravniStatusFilter && entry.pravniStatus !== pravniStatusFilter) return false
         if (filter === 'u_aplikaciji' && !(inst && hasActiveBatch)) return false
-        if (filter === 'nije_upareno' && inst && hasActiveBatch) return false
+        if (filter === 'prepoznato' && (!inst || hasActiveBatch)) return false
+        if (filter === 'nije_upareno' && inst) return false
         if (q) {
           const hit =
             entry.naziv.toLowerCase().includes(q) ||
@@ -113,14 +117,18 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
         <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden mb-3">
           <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
         </div>
-        <div className="grid grid-cols-2 gap-3 text-center">
+        <div className="grid grid-cols-3 gap-3 text-center">
           <div>
             <p className="text-xl font-bold text-emerald-700">{stats?.uApp ?? '…'}</p>
             <p className="text-xs text-gray-400 mt-0.5">S aktivnim uploadom</p>
           </div>
           <div>
-            <p className="text-xl font-bold text-red-600">{stats?.nijeUpareno ?? '…'}</p>
-            <p className="text-xs text-gray-400 mt-0.5">Bez uploada</p>
+            <p className="text-xl font-bold text-blue-600">{stats?.uRegistru ?? '…'}</p>
+            <p className="text-xs text-gray-400 mt-0.5">Prepoznato po OIB-u</p>
+          </div>
+          <div>
+            <p className="text-xl font-bold text-red-600">{stats ? stats.total - stats.uRegistru : '…'}</p>
+            <p className="text-xs text-gray-400 mt-0.5">Nema u aplikaciji</p>
           </div>
         </div>
       </div>
@@ -130,9 +138,10 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
         {/* Status filter chips */}
         <div className="flex gap-1.5 flex-wrap">
           {([
-            { key: 'sve'          as RegistryFilter, label: 'Sva tijela',    count: stats?.total },
-            { key: 'u_aplikaciji' as RegistryFilter, label: 'U aplikaciji',  count: stats?.uApp },
-            { key: 'nije_upareno' as RegistryFilter, label: 'Bez uploada',   count: stats?.nijeUpareno },
+            { key: 'sve'          as RegistryFilter, label: 'Sva tijela',     count: stats?.total },
+            { key: 'u_aplikaciji' as RegistryFilter, label: 'U aplikaciji',   count: stats?.uApp },
+            { key: 'prepoznato'   as RegistryFilter, label: 'Prepoznato',     count: stats ? stats.uRegistru - stats.uApp : undefined },
+            { key: 'nije_upareno' as RegistryFilter, label: 'Nema u aplik.', count: stats ? stats.total - stats.uRegistru : undefined },
           ]).map(({ key, label, count }) => (
             <button
               key={key}
