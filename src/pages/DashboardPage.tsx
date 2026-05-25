@@ -10,7 +10,7 @@ import { SeverityBadge } from '../components/StatusBadge'
 import { getAppSettings } from '../hooks/useAppSettings'
 import { currentUser } from '../services/authService'
 import { validateOib, formatOibError } from '../utils/oibValidator'
-import { REGISTRY_STATS } from '../data/submissionRegistry'
+import { SUBMISSION_REGISTRY } from '../data/submissionRegistry'
 
 const YEARS = [2024, 2025, 2026, 2027, 2028]
 
@@ -379,10 +379,18 @@ export function DashboardPage() {
     queryKey: ['allFinancialEntries'],
     queryFn: () => getProvider().getAllFinancialEntries(),
   })
+  const { data: allInstitutions = [] } = useQuery({
+    queryKey: ['institutions'],
+    queryFn: () => getProvider().getInstitutions(),
+  })
   const loading = batchLoading || entriesLoading
 
   const activeBatches = batches.filter(b => b.isActive !== false)
   const activeIds     = new Set(activeBatches.map(b => b.id!))
+  const activeInstIds = new Set(activeBatches.map(b => b.institutionId).filter(Boolean))
+
+  // Dynamic registry stats: count institutions linked to registry with active batch
+  const registryLinked = allInstitutions.filter(i => i.registryIndex != null && activeInstIds.has(i.id)).length
 
   const totalErrors   = activeBatches.reduce((s, b) => s + b.errorCount, 0)
   const totalWarnings = activeBatches.reduce((s, b) => s + b.warningCount, 0)
@@ -440,13 +448,15 @@ export function DashboardPage() {
         />
       </div>
 
-      {/* Dostava podataka — summary */}
+      {/* Dostava podataka — summary (dinamički iz aplikacije) */}
       {(() => {
-        const pct = Math.round((REGISTRY_STATS.da / REGISTRY_STATS.total) * 100)
+        const total = SUBMISSION_REGISTRY.length
+        const pct = total > 0 ? Math.round((registryLinked / total) * 100) : 0
+        const remaining = total - registryLinked
         return (
           <Link to="/institutions" state={{ view: 'registar' }} className="block bg-white rounded-2xl border border-gray-200 px-5 py-4 mb-6 hover:bg-gray-50 transition-colors group">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold text-gray-700">Dostava podataka</p>
+              <p className="text-sm font-semibold text-gray-700">Dostava podataka u aplikaciju</p>
               <span className="text-xs text-gray-400 group-hover:text-blue-600 transition-colors">Prikaži registar →</span>
             </div>
             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
@@ -454,9 +464,8 @@ export function DashboardPage() {
             </div>
             <div className="flex items-center justify-between text-xs text-gray-500">
               <span>
-                <span className="font-semibold text-emerald-700">{REGISTRY_STATS.da}</span> dostavilo ·{' '}
-                <span className="font-semibold text-yellow-600">{REGISTRY_STATS.dopis}</span> samo dopis ·{' '}
-                <span className="font-semibold text-red-600">{REGISTRY_STATS.ne}</span> nije dostavilo
+                <span className="font-semibold text-emerald-700">{registryLinked}</span> upareno s aktivnim batchem ·{' '}
+                <span className="font-semibold text-red-600">{remaining}</span> bez uploada
               </span>
               <span className="font-semibold text-gray-700">{pct}%</span>
             </div>

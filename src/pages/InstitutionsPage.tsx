@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getProvider } from '../providers'
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
 import { StatusBadge, ActiveBadge } from '../components/StatusBadge'
-import { SUBMISSION_REGISTRY, REGISTRY_STATS, type DeliveryStatus } from '../data/submissionRegistry'
+import { SUBMISSION_REGISTRY, type DeliveryStatus } from '../data/submissionRegistry'
+import { RegistryLinkModal } from '../components/RegistryLinkModal'
 
 interface InstitutionRow {
   institution: Institution
@@ -20,82 +21,104 @@ type FilterKey = 'sve' | 'greske' | 'nema_aktivnog' | 'nema_batcha'
 type SortKey = 'batches_desc' | 'abecedno' | 'datum_desc' | 'greske_desc'
 type PageView = 'uvezeni' | 'registar'
 
-const DELIVERY_STYLE: Record<DeliveryStatus, { bg: string; text: string; dot: string; label: string }> = {
-  DA:    { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'Dostavljeno' },
-  NE:    { bg: 'bg-red-50',     text: 'text-red-700',     dot: 'bg-red-500',     label: 'Nije dostavljeno' },
-  DOPIS: { bg: 'bg-yellow-50',  text: 'text-yellow-700',  dot: 'bg-yellow-400',  label: 'Samo dopis' },
+type RegistryFilter = 'sve' | 'u_aplikaciji' | 'nije_upareno'
+
+interface RegistryViewProps {
+  institutions: Institution[]
+  batches: ImportBatch[]
+  onRequestLink: (institution: Institution) => void
 }
 
-function RegistryView() {
-  const [search, setSearch]   = useState('')
-  const [filter, setFilter]   = useState<DeliveryStatus | 'sve'>('sve')
+function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProps) {
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState<RegistryFilter>('sve')
+
+  // Build lookup: registryIndex → institution
+  const linkedMap = useMemo(() => {
+    const m = new Map<number, Institution>()
+    institutions.forEach(inst => {
+      if (inst.registryIndex != null) m.set(inst.registryIndex, inst)
+    })
+    return m
+  }, [institutions])
+
+  // For each institution, find if it has an active batch
+  const activeBatchSet = useMemo(() => new Set(batches.filter(b => b.isActive).map(b => b.institutionId)), [batches])
+
+  // Compute dynamic stats
+  const stats = useMemo(() => {
+    let uApp = 0, nijeUpareno = 0
+    SUBMISSION_REGISTRY.forEach((_, idx) => {
+      const inst = linkedMap.get(idx)
+      if (inst && activeBatchSet.has(inst.id)) uApp++
+      else nijeUpareno++
+    })
+    return { total: SUBMISSION_REGISTRY.length, uApp, nijeUpareno }
+  }, [linkedMap, activeBatchSet])
+
+  const pct = Math.round((stats.uApp / stats.total) * 100)
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return SUBMISSION_REGISTRY.filter(e => {
-      const matchText = !q || e.name.toLowerCase().includes(q) || e.email.toLowerCase().includes(q)
-      const matchFilter = filter === 'sve' || e.delivery === filter
-      return matchText && matchFilter
-    })
-  }, [search, filter])
-
-  const pct = Math.round((REGISTRY_STATS.da / REGISTRY_STATS.total) * 100)
+    return SUBMISSION_REGISTRY
+      .map((entry, index) => {
+        const inst = linkedMap.get(index)
+        const hasActiveBatch = inst ? activeBatchSet.has(inst.id) : false
+        return { index, entry, inst, hasActiveBatch }
+      })
+      .filter(({ entry, inst, hasActiveBatch }) => {
+        const matchText = !q ||
+          entry.name.toLowerCase().includes(q) ||
+          entry.email.toLowerCase().includes(q) ||
+          (inst?.name.toLowerCase().includes(q) ?? false)
+        if (!matchText) return false
+        if (filter === 'u_aplikaciji') return !!inst && hasActiveBatch
+        if (filter === 'nije_upareno') return !inst || !hasActiveBatch
+        return true
+      })
+  }, [search, filter, linkedMap, activeBatchSet])
 
   return (
     <div>
       {/* Progress summary */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-4">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-semibold text-gray-700">Dostava podataka — pregled</p>
-          <span className="text-sm font-bold text-gray-800">{REGISTRY_STATS.da} / {REGISTRY_STATS.total}</span>
+          <p className="text-sm font-semibold text-gray-700">Dostava podataka u aplikaciju</p>
+          <span className="text-sm font-bold text-gray-800">{stats.uApp} / {stats.total}</span>
         </div>
         <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden mb-3">
-          <div
-            className="h-full bg-emerald-500 rounded-full transition-all duration-700"
-            style={{ width: `${pct}%` }}
-          />
+          <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
         </div>
-        <div className="grid grid-cols-3 gap-3 text-center">
-          {([
-            { key: 'DA'    as DeliveryStatus, label: 'Dostavilo',       value: REGISTRY_STATS.da,    color: 'text-emerald-700' },
-            { key: 'DOPIS' as DeliveryStatus, label: 'Samo dopis',      value: REGISTRY_STATS.dopis, color: 'text-yellow-700'  },
-            { key: 'NE'    as DeliveryStatus, label: 'Nije dostavilo',  value: REGISTRY_STATS.ne,    color: 'text-red-700'     },
-          ]).map(({ label, value, color }) => (
-            <div key={label}>
-              <p className={`text-xl font-bold ${color}`}>{value}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{label}</p>
-            </div>
-          ))}
+        <div className="grid grid-cols-2 gap-3 text-center">
+          <div>
+            <p className="text-xl font-bold text-emerald-700">{stats.uApp}</p>
+            <p className="text-xs text-gray-400 mt-0.5">Upareno s aktivnim uploadom</p>
+          </div>
+          <div>
+            <p className="text-xl font-bold text-red-600">{stats.nijeUpareno}</p>
+            <p className="text-xs text-gray-400 mt-0.5">Nije upareno / nema uploada</p>
+          </div>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filters + search */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="flex gap-1.5 flex-wrap">
           {([
-            { key: 'sve'   as const, label: 'Sve' },
-            { key: 'DA'    as const, label: 'Dostavilo' },
-            { key: 'DOPIS' as const, label: 'Samo dopis' },
-            { key: 'NE'    as const, label: 'Nije dostavilo' },
-          ]).map(({ key, label }) => {
-            const count = key === 'sve' ? REGISTRY_STATS.total
-              : key === 'DA' ? REGISTRY_STATS.da
-              : key === 'DOPIS' ? REGISTRY_STATS.dopis
-              : REGISTRY_STATS.ne
-            return (
-              <button
-                key={key}
-                onClick={() => setFilter(key)}
-                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                  filter === key
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                {label} <span className="opacity-70">({count})</span>
-              </button>
-            )
-          })}
+            { key: 'sve'          as RegistryFilter, label: 'Sve',               count: stats.total },
+            { key: 'u_aplikaciji' as RegistryFilter, label: 'U aplikaciji',      count: stats.uApp },
+            { key: 'nije_upareno' as RegistryFilter, label: 'Bez uploada',       count: stats.nijeUpareno },
+          ]).map(({ key, label, count }) => (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                filter === key ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {label} <span className="opacity-70">({count})</span>
+            </button>
+          ))}
         </div>
         <div className="relative ml-auto">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
@@ -115,25 +138,48 @@ function RegistryView() {
           <p className="p-10 text-center text-gray-400 text-sm">Nema rezultata</p>
         ) : (
           <div className="divide-y divide-gray-100">
-            {visible.map((entry, i) => {
-              const s = DELIVERY_STYLE[entry.delivery]
+            {visible.map(({ index, entry, inst, hasActiveBatch }) => {
+              const linked = !!inst
+              const active = linked && hasActiveBatch
               return (
-                <div key={i} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50">
-                  <span className={`shrink-0 w-2 h-2 rounded-full ${s.dot}`} />
+                <div key={index} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50">
+                  <span className={`shrink-0 w-2 h-2 rounded-full ${active ? 'bg-emerald-500' : linked ? 'bg-yellow-400' : 'bg-red-400'}`} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800 truncate">{entry.name}</p>
-                    {entry.email && (
-                      <a
-                        href={`mailto:${entry.email}`}
-                        className="text-xs text-blue-600 hover:underline truncate block"
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {entry.email && (
+                        <a href={`mailto:${entry.email}`} className="text-xs text-blue-600 hover:underline truncate">
+                          {entry.email}
+                        </a>
+                      )}
+                      {inst && (
+                        <span className="text-xs text-gray-400">
+                          · upareno: <Link to={`/institucije/${inst.id}`} className="text-blue-600 hover:underline">{inst.name}</Link>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="shrink-0 flex items-center gap-2">
+                    {active ? (
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
+                        ✓ U aplikaciji
+                      </span>
+                    ) : linked ? (
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700">
+                        Upareno, nema uploada
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          const candidate = institutions.find(i => i.registryIndex == null)
+                          if (candidate) onRequestLink(candidate)
+                        }}
+                        className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
                       >
-                        {entry.email}
-                      </a>
+                        Nije upareno
+                      </button>
                     )}
                   </div>
-                  <span className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${s.bg} ${s.text}`}>
-                    {s.label}
-                  </span>
                 </div>
               )
             })}
@@ -175,13 +221,14 @@ export function filterAndSortRows(
 export function InstitutionsPage() {
   usePageTitle('Institucije')
   const location = useLocation()
-  const [view, setView] = useState<PageView>('uvezeni')
-  const [expanded, setExpanded] = useState<string | null>(
-    (location.state as { expandId?: string } | null)?.expandId ?? null
-  )
+  const qc = useQueryClient()
+  const locState = location.state as { expandId?: string; view?: PageView } | null
+  const [view, setView] = useState<PageView>(locState?.view ?? 'uvezeni')
+  const [expanded, setExpanded] = useState<string | null>(locState?.expandId ?? null)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterKey>('sve')
   const [sort, setSort] = useState<SortKey>('batches_desc')
+  const [linkTarget, setLinkTarget] = useState<Institution | null>(null)
   const expandedRef = useRef<HTMLDivElement | null>(null)
 
   const { data: institutions = [], isLoading: instLoading } = useQuery({
@@ -271,7 +318,26 @@ export function InstitutionsPage() {
       </div>
 
       {/* Registar dostave view */}
-      {view === 'registar' && <RegistryView />}
+      {/* Linking modal */}
+      {linkTarget && (
+        <RegistryLinkModal
+          institutionName={linkTarget.name}
+          currentRegistryIndex={linkTarget.registryIndex}
+          onConfirm={async (idx) => {
+            await getProvider().updateInstitutionRegistryIndex(linkTarget.id!, idx)
+            qc.invalidateQueries({ queryKey: ['institutions'] })
+          }}
+          onClose={() => setLinkTarget(null)}
+        />
+      )}
+
+      {view === 'registar' && (
+        <RegistryView
+          institutions={institutions}
+          batches={batches}
+          onRequestLink={setLinkTarget}
+        />
+      )}
       {view === 'uvezeni' && (<>
 
       {/* Filters + sort */}
@@ -356,6 +422,25 @@ export function InstitutionsPage() {
                   >
                     {row.institution.name.charAt(0).toUpperCase()}
                   </Link>
+
+                  {/* Registry link indicator */}
+                  {row.institution.registryIndex != null ? (
+                    <span
+                      className="shrink-0 hidden sm:inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full cursor-pointer hover:bg-emerald-100 transition-colors"
+                      title={SUBMISSION_REGISTRY[row.institution.registryIndex]?.name}
+                      onClick={() => setLinkTarget(row.institution)}
+                    >
+                      🔗 {SUBMISSION_REGISTRY[row.institution.registryIndex]?.name.slice(0, 20)}…
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => setLinkTarget(row.institution)}
+                      className="shrink-0 hidden sm:inline-flex items-center gap-1 text-xs text-gray-400 bg-gray-100 hover:bg-yellow-50 hover:text-yellow-700 px-2 py-0.5 rounded-full transition-colors"
+                      title="Nije upareno s registrom dostave"
+                    >
+                      🔗 Upari
+                    </button>
+                  )}
 
                   {/* Expand button: main info + stats + chevron */}
                   <button

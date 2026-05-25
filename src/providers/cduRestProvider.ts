@@ -56,6 +56,7 @@ export function createCduRestProvider(_config: CduConfig): DataProvider {
     upsertInstitution: () => ni('upsertInstitution'),
     getInstitutions: () => ni('getInstitutions'),
     getInstitutionById: () => ni('getInstitutionById'),
+    updateInstitutionRegistryIndex: () => ni('updateInstitutionRegistryIndex'),
 
     createBatch: () => ni('createBatch'),
     updateBatch: () => ni('updateBatch'),
