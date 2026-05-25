@@ -41,7 +41,8 @@ let _pending: Promise<RegistryData> | null = null
 export async function getRegistry(): Promise<RegistryData> {
   if (_cache) return _cache
   if (!_pending) {
-    _pending = fetch('/registar-tijela.json')
+    const base = import.meta.env.BASE_URL ?? '/'
+    _pending = fetch(`${base}registar-tijela.json`)
       .then(r => r.json() as Promise<RegistryEntry[]>)
       .then(entries => {
         _cache = { entries, byOib: new Map(entries.map(e => [e.oib, e])) }
