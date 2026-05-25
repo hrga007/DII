@@ -152,38 +152,17 @@ export async function bulkAutoMatchRegistryIndex(): Promise<{
   skipped: number
   alreadyLinked: number
 }> {
+  // Uparivanje je sada OIB-based i implicitno — ne treba pisati u Firestore.
+  // Ova funkcija ostaje u interfejsu radi kompatibilnosti; vraća samo statistiku.
+  const { getRegistry } = await import('../utils/registryLoader')
+  const registry = await getRegistry()
   const institutions = await getInstitutions()
-  const db = getFirebaseDb()
-
-  let matched = 0
-  let skipped = 0
-  let alreadyLinked = 0
-  const toUpdate: { id: string; registryIndex: number }[] = []
-
+  let matched = 0, skipped = 0
   for (const inst of institutions) {
-    if (inst.registryIndex != null) {
-      alreadyLinked++
-      continue
-    }
-    const match = findBestMatch(inst.name)
-    if (match) {
-      toUpdate.push({ id: inst.id!, registryIndex: match.index })
-      matched++
-    } else {
-      skipped++
-    }
+    if (registry.byOib.has(inst.oib)) matched++
+    else skipped++
   }
-
-  const CHUNK = 400
-  for (let i = 0; i < toUpdate.length; i += CHUNK) {
-    const wb = writeBatch(db)
-    toUpdate.slice(i, i + CHUNK).forEach(({ id, registryIndex }) => {
-      wb.update(doc(db, 'institutions', id), { registryIndex })
-    })
-    await wb.commit()
-  }
-
-  return { matched, skipped, alreadyLinked }
+  return { matched, skipped, alreadyLinked: 0 }
 }
 
 export async function getInstitutions(): Promise<Institution[]> {
