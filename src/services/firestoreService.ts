@@ -520,6 +520,45 @@ export async function getAllImportIssues(severity?: 'error' | 'warning'): Promis
   })
 }
 
+// Retroaktivno primijeni sve riješene OIB/naziv ispravke na institucije.
+// Rješava slučajeve gdje je greška ispravljena prije fixa propagacije.
+export async function reapplyResolvedIssues(): Promise<{ updated: number; skipped: number }> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(
+    query(collection(db, 'importIssues'), where('resolvedMethod', '==', 'MANUAL_EDIT'))
+  )
+
+  let updated = 0, skipped = 0
+  const batchCache = new Map<string, string | null>() // batchId → institutionId
+
+  for (const d of snap.docs) {
+    const issue = d.data()
+    const fn = (issue.fieldName as string | undefined)?.toLowerCase()
+    const correctedValue = issue.correctedValue as string | undefined
+    if (!correctedValue || (fn !== 'oib' && fn !== 'naziv tijela')) { skipped++; continue }
+
+    let institutionId = batchCache.get(issue.batchId)
+    if (institutionId === undefined) {
+      const bSnap = await getDoc(doc(db, 'importBatches', issue.batchId))
+      institutionId = (bSnap.data()?.institutionId as string | undefined) ?? null
+      batchCache.set(issue.batchId, institutionId)
+    }
+    if (!institutionId) { skipped++; continue }
+
+    const instSnap = await getDoc(doc(db, 'institutions', institutionId))
+    if (!instSnap.exists()) { skipped++; continue }
+    const inst = instSnap.data()
+
+    const currentVal = fn === 'oib' ? inst.oib : inst.name
+    if (currentVal === correctedValue) { skipped++; continue }
+
+    const field = fn === 'oib' ? 'oib' : 'name'
+    await updateDoc(doc(db, 'institutions', institutionId), { [field]: correctedValue })
+    updated++
+  }
+  return { updated, skipped }
+}
+
 // ─── Installed Resources ─────────────────────────────────────────
 export async function saveInstalledResources(resources: InstalledResource[]): Promise<void> {
   const db = getFirebaseDb()
