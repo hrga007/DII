@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getProvider } from '../providers'
 import type { ImportBatch } from '../models/importBatch'
@@ -83,7 +83,7 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
     try {
       const user = currentUser()
       if (!user || !iss.id) return
-      await getProvider().resolveIssue(iss.id, user.uid, 'MANUAL_EDIT', editValue.trim(), editNote.trim() || undefined)
+      await getProvider().resolveIssue(iss.id, user.uid, 'MANUAL_EDIT', editValue.trim(), editNote.trim() || undefined, { batchId: iss.batchId, severity: iss.severity })
       await getProvider().addAuditLog({
         userId: user.uid,
         action: 'manual_correction',
@@ -367,9 +367,13 @@ export function DashboardPage() {
   usePageTitle('Pregled')
   const appSettings = getAppSettings()
 
+  const queryClient = useQueryClient()
   const [yearFilter, setYearFilter] = useState<number | 'all'>(appSettings.defaultYear)
   const [modal,      setModal]      = useState<ModalMode | null>(null)
-  const closeModal = useCallback(() => setModal(null), [])
+  const closeModal = useCallback(() => {
+    setModal(null)
+    queryClient.invalidateQueries({ queryKey: ['batches'] })
+  }, [queryClient])
 
   const { data: batches = [], isLoading: batchLoading } = useQuery({
     queryKey: ['batches'],
@@ -459,19 +463,21 @@ export function DashboardPage() {
         const remaining = total - linked
         return (
           <Link to="/institutions" state={{ view: 'registar' }} className="block bg-white rounded-2xl border border-gray-200 px-5 py-4 mb-6 hover:bg-gray-50 transition-colors group">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-1">
               <p className="text-sm font-semibold text-gray-700">Dostava podataka u aplikaciju</p>
               <span className="text-xs text-gray-400 group-hover:text-blue-600 transition-colors">Prikaži registar →</span>
+            </div>
+            <div className="flex items-baseline gap-2 mb-2">
+              <span className="text-2xl font-bold text-emerald-700">{linked}</span>
+              <span className="text-sm text-gray-400">/ {total}</span>
+              <span className="text-sm font-semibold text-gray-500 ml-auto">{pct}%</span>
             </div>
             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
               <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
             </div>
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <span>
-                <span className="font-semibold text-emerald-700">{linked}</span> s aktivnim batchem ·{' '}
-                <span className="font-semibold text-red-600">{remaining}</span> bez uploada
-              </span>
-              <span className="font-semibold text-gray-700">{pct}%</span>
+            <div className="text-xs text-gray-500">
+              <span className="font-semibold text-emerald-700">{linked}</span> s aktivnim batchem ·{' '}
+              <span className="font-semibold text-red-600">{remaining}</span> bez uploada
             </div>
           </Link>
         )
