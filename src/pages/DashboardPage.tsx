@@ -71,7 +71,7 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
   }
 
   async function handleSave(iss: ImportIssue) {
-    const isOib = iss.fieldName === 'oib'
+    const isOib = iss.fieldName?.toLowerCase() === 'oib'
     if (isOib) {
       const err = formatOibError(editValue)
       if (err) { setEditError(err); return }
@@ -224,7 +224,7 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
               {filtered.map((iss) => {
                 const b = batchMap.get(iss.batchId)
                 const isExpanded = expandedId === iss.id
-                const isOib = iss.fieldName === 'oib'
+                const isOib = iss.fieldName?.toLowerCase() === 'oib'
                 const oibValid = isOib ? validateOib(editValue) : true
                 const canEdit = !iss.resolvedAt
 

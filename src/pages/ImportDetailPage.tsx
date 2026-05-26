@@ -26,7 +26,8 @@ const GROUP_LABELS: Record<string, string> = {
   CLOUD:      'Cloud troškovi',
 }
 
-const TIP_A_FIELDS = ['oib', 'name', 'contactName', 'contactEmail', 'contactPhone']
+// Stvarni fieldName-ovi koji dolaze iz validators.ts / sheetMappers.ts
+const TIP_A_FIELDS = ['OIB', 'Naziv tijela']
 
 function formatEur(v: number | null): string {
   if (v === null) return '–'
@@ -190,7 +191,7 @@ function TipAModal({ issue, onClose, onSaved }: TipAModalProps) {
   const [validationError, setValidationError] = useState('')
 
   function validate(): boolean {
-    if (issue.fieldName === 'oib') {
+    if (issue.fieldName?.toLowerCase() === 'oib') {
       const err = formatOibError(value)
       setValidationError(err)
       return !err
@@ -219,7 +220,7 @@ function TipAModal({ issue, onClose, onSaved }: TipAModalProps) {
         timestamp: new Date(),
         details: { field: issue.fieldName, correctedValue: value.trim() },
       })
-      if (issue.fieldName === 'oib') {
+      if (issue.fieldName?.toLowerCase() === 'oib') {
         queryClient.invalidateQueries({ queryKey: ['institutions'] })
       }
       onSaved()
@@ -228,7 +229,7 @@ function TipAModal({ issue, onClose, onSaved }: TipAModalProps) {
     }
   }
 
-  const isOib = issue.fieldName === 'oib'
+  const isOib = issue.fieldName?.toLowerCase() === 'oib'
   const oibValid = isOib ? validateOib(value) : true
 
   return (
