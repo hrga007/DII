@@ -325,7 +325,8 @@ export async function resolveIssue(
   resolvedBy: string,
   resolvedMethod: IssueResolutionMethod,
   correctedValue?: string,
-  resolutionNote?: string
+  resolutionNote?: string,
+  meta?: { batchId: string; severity: 'error' | 'warning' }
 ): Promise<void> {
   const db = getFirebaseDb()
   await setDoc(
@@ -339,6 +340,10 @@ export async function resolveIssue(
     },
     { merge: true }
   )
+  if (meta) {
+    const field = meta.severity === 'error' ? 'errorCount' : 'warningCount'
+    await updateDoc(doc(db, 'importBatches', meta.batchId), { [field]: increment(-1) })
+  }
 }
 
 // Označava sve NP varijante u batchu kao riješene i normalizira vrijednosti.
