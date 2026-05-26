@@ -1,0 +1,464 @@
+MATCHING REPORT — 2026-05-26T06:12:03.773Z
+Ukupno: 150 | Auto (≥0.55): 139 | Prijedlog: 8 | Bez podudaranja: 3
+====================================================================================================
+
+✅ AUTOMATSKI UPARENO (139)
+--------------------------------------------------------------------------------
+  Excel:    "Ministarstvo unutarnjih poslova"
+  Registar: "Ministarstvo unutarnjih poslova" — OIB: 36162371878 (score: 1.000)
+
+  Excel:    "Ministarstvo obrane"
+  Registar: "Ministarstvo obrane" — OIB: 66486182714 (score: 1.000)
+
+  Excel:    "Ministarstvo zdravstva"
+  Registar: "Ministarstvo zdravstva" — OIB: 88362248492 (score: 1.000)
+
+  Excel:    "Ministarstvo znanosti, obrazovanja i mladih"
+  Registar: "Ministarstvo znanosti, obrazovanja i mladih" — OIB: 49508397045 (score: 1.000)
+
+  Excel:    "Ministarstvo gospodarstva"
+  Registar: "Ministarstvo gospodarstva" — OIB: 19370100881 (score: 1.000)
+
+  Excel:    "Ministarstvo regionalnoga razvoja i fondova Europske unije"
+  Registar: "Ministarstvo regionalnoga razvoja i fondova Europske unije" — OIB: 69608914212 (score: 1.000)
+
+  Excel:    "Ministarstvo mora, prometa i infrastrukture"
+  Registar: "Ministarstvo mora, prometa i infrastrukture" — OIB: 22874515170 (score: 1.000)
+
+  Excel:    "Ministarstvo rada, mirovinskoga sustava, obitelji i socijalne politike"
+  Registar: "Ministarstvo rada, mirovinskoga sustava, obitelji i socijalne politike" — OIB: 53969486500 (score: 1.000)
+
+  Excel:    "Ministarstvo poljoprivrede, šumarstva i ribarstva"
+  Registar: "Ministarstvo poljoprivrede, šumarstva i ribarstva" — OIB: 76767369197 (score: 1.000)
+
+  Excel:    "Ministarstvo kulture i medija"
+  Registar: "Ministarstvo kulture i medija" — OIB: 37836302645 (score: 1.000)
+
+  Excel:    "Ministarstvo turizma i sporta"
+  Registar: "Ministarstvo turizma i sporta" — OIB: 87892589782 (score: 1.000)
+
+  Excel:    "Ministarstvo vanjskih i europskih poslova"
+  Registar: "Ministarstvo vanjskih i europskih poslova" — OIB: 43541122224 (score: 1.000)
+
+  Excel:    "Ministarstvo zaštite okoliša i zelene tranzicije"
+  Registar: "Ministarstvo zaštite okoliša i zelene tranzicije" — OIB: 59951999361 (score: 1.000)
+
+  Excel:    "Ministarstvo demografije i useljeništva"
+  Registar: "Ministarstvo demografije i useljeništva" — OIB: 43609566625 (score: 1.000)
+
+  Excel:    "Ministarstvo prostornoga uređenja, graditeljstva i državne imovine"
+  Registar: "Ministarstvo prostornoga uređenja, graditeljstva i državne imovine" — OIB: 95093210687 (score: 1.000)
+
+  Excel:    "Ministarstvo hrvatskih branitelja"
+  Registar: "Ministarstvo hrvatskih branitelja" — OIB: 95131524528 (score: 1.000)
+
+  Excel:    "Središnji državni ured za središnju javnu nabavu"
+  Registar: "Središnji državni ured za središnju javnu nabavu" — OIB: 17683204722 (score: 1.000)
+
+  Excel:    "Središnji državni ured za Hrvate izvan Republike Hrvatske"
+  Registar: "Središnji državni ured za Hrvate izvan Republike Hrvatske" — OIB: 03416985458 (score: 1.000)
+
+  Excel:    "Hrvatska vatrogasna zajednica"
+  Registar: "Hrvatska vatrogasna zajednica" — OIB: 08474627795 (score: 1.000)
+
+  Excel:    "Državni zavod za statistiku"
+  Registar: "Državni zavod za statistiku" — OIB: 49337502853 (score: 1.000)
+
+  Excel:    "Državni zavod za intelektualno vlasništvo"
+  Registar: "Državni zavod za intelektualno vlasništvo" — OIB: 89755384389 (score: 1.000)
+
+  Excel:    "Državni zavod za mjeriteljstvo"
+  Registar: "Državni zavod za mjeriteljstvo" — OIB: 99875008081 (score: 1.000)
+
+  Excel:    "Državna geodetska uprava"
+  Registar: "Državna geodetska uprava" — OIB: 84891127540 (score: 1.000)
+
+  Excel:    "Državni hidrometeorološki zavod"
+  Registar: "Državni hidrometeorološki zavod" — OIB: 74660437164 (score: 1.000)
+
+  Excel:    "Državni inspektorat"
+  Registar: "Državni inspektorat" — OIB: 33706439962 (score: 1.000)
+
+  Excel:    "Hrvatska regulatorna agencija za mrežne djelatnosti (HAKOM)"
+  Registar: "Hrvatska regulatorna agencija za mrežne djelatnosti - HAKOM" — OIB: 87950783661 (score: 1.000)
+
+  Excel:    "Hrvatska agencija za nadzor financijskih usluga (HANFA)"
+  Registar: "Hrvatska agencija za nadzor financijskih usluga - HANFA" — OIB: 49376181407 (score: 1.000)
+
+  Excel:    "Agencija za zaštitu osobnih podataka (AZOP)"
+  Registar: "Agencija za zaštitu osobnih podataka" — OIB: 28454963989 (score: 0.800)
+
+  Excel:    "Središnje klirinško depozitarno društvo (SKDD)"
+  Registar: "Središnje klirinško depozitarno društvo d.d. - SKDD" — OIB: 64406809162 (score: 1.000)
+
+  Excel:    "Financijska agencija (FINA)"
+  Registar: "Financijska agencija - FINA" — OIB: 85821130368 (score: 1.000)
+
+  Excel:    "Agencija za komercijalnu djelatnost (AKD)"
+  Registar: "Agencija za komercijalnu djelatnost - AKD d.o.o." — OIB: 58843087891 (score: 1.000)
+
+  Excel:    "Agencija za podršku informacijskim sustavima i informacijskim tehnologijama (APIS IT)"
+  Registar: "Agencija za podršku informacijskim sustavima i informacijskim tehnologijama d.o.o. - APIS IT d.o.o" — OIB: 02994650199 (score: 1.000)
+
+  Excel:    "Hrvatska akademska i istraživačka mreža (CARNET)"
+  Registar: "Hrvatska akademska i istraživačka mreža CARNet" — OIB: 58101996540 (score: 1.000)
+
+  Excel:    "Sveučilišni računski centar (SRCE)"
+  Registar: "Sveučilište u Zagrebu, Sveučilišni računski centar Srce" — OIB: 34016189309 (score: 0.667)
+
+  Excel:    "Odašiljači i veze d.o.o. (OiV)"
+  Registar: "Odašiljači i veze d.o.o. - OIV" — OIB: 88150534338 (score: 1.000)
+
+  Excel:    "Agencija za plaćanja u poljoprivredi, ribarstvu i ruralnom razvoju (APPRRR)"
+  Registar: "Agencija za plaćanja u poljoprivredi, ribarstvu i ruralnom razvoju" — OIB: 99122235709 (score: 0.857)
+
+  Excel:    "Hrvatski zavod za mirovinsko osiguranje (HZMO)"
+  Registar: "Hrvatski zavod za mirovinsko osiguranje" — OIB: 84397956623 (score: 0.800)
+
+  Excel:    "Hrvatski zavod za zapošljavanje (HZZ)"
+  Registar: "Hrvatski zavod za zapošljavanje" — OIB: 91547293790 (score: 0.750)
+
+  Excel:    "Hrvatski zavod za zdravstveno osiguranje (HZZO)"
+  Registar: "Hrvatski zavod za zdravstveno osiguranje - HZZO" — OIB: 02958272670 (score: 1.000)
+
+  Excel:    "Hrvatski zavod za socijalni rad"
+  Registar: "Hrvatski zavod za socijalni rad" — OIB: 52966791065 (score: 1.000)
+
+  Excel:    "Centar za posebno skrbništvo"
+  Registar: "Centar za posebno skrbništvo" — OIB: 15916354928 (score: 1.000)
+
+  Excel:    "Državna škola za javnu upravu"
+  Registar: "Državna škola za javnu upravu" — OIB: 01681646554 (score: 1.000)
+
+  Excel:    "Hrvatski sabor"
+  Registar: "Hrvatski sabor" — OIB: 38597506234 (score: 1.000)
+
+  Excel:    "Vlada Republike Hrvatske"
+  Registar: "Vlada Republike Hrvatske" — OIB: 64434885131 (score: 1.000)
+
+  Excel:    "Ustavni sud Republike Hrvatske"
+  Registar: "Ustavni sud Republike Hrvatske" — OIB: 43530726662 (score: 1.000)
+
+  Excel:    "Državni ured za reviziju"
+  Registar: "Državni ured za reviziju" — OIB: 55448281176 (score: 1.000)
+
+  Excel:    "Pučki pravobranitelj"
+  Registar: "Pučki pravobranitelj" — OIB: 08026537914 (score: 1.000)
+
+  Excel:    "Povjerenik za informiranje"
+  Registar: "Povjerenik za informiranje" — OIB: 68011638990 (score: 1.000)
+
+  Excel:    "Pravobranitelj za djecu"
+  Registar: "Pravobranitelj za djecu" — OIB: 71628985886 (score: 1.000)
+
+  Excel:    "Pravobranitelj za osobe s invaliditetom"
+  Registar: "Pravobranitelj za osobe s invaliditetom" — OIB: 39572892750 (score: 1.000)
+
+  Excel:    "Institut Ruđer Bošković"
+  Registar: "Institut Ruđer Bošković" — OIB: 69715301002 (score: 1.000)
+
+  Excel:    "Institut za fiziku"
+  Registar: "Institut za fiziku" — OIB: 77627408491 (score: 1.000)
+
+  Excel:    "Ekonomski institut Zagreb"
+  Registar: "Ekonomski institut Zagreb" — OIB: 70925432731 (score: 1.000)
+
+  Excel:    "Institut za međunarodne odnose"
+  Registar: "Institut za razvoj i međunarodne odnose" — OIB: 31120185175 (score: 0.750)
+
+  Excel:    "Institut za društvena istraživanja u Zagrebu"
+  Registar: "Institut za društvena istraživanja u Zagrebu" — OIB: 11986338639 (score: 1.000)
+
+  Excel:    "Hrvatska akademija znanosti i umjetnosti (HAZU)"
+  Registar: "Hrvatska akademija znanosti i umjetnosti - HAZU" — OIB: 61989185242 (score: 1.000)
+
+  Excel:    "Institut za turizam"
+  Registar: "Institut za turizam" — OIB: 10264179101 (score: 1.000)
+
+  Excel:    "Institut za jadranske kulture i melioraciju krša"
+  Registar: "Institut za jadranske kulture i melioraciju krša" — OIB: 90884993104 (score: 1.000)
+
+  Excel:    "Institut za oceanografiju i ribarstvo"
+  Registar: "Institut za oceanografiju i ribarstvo" — OIB: 86235185568 (score: 1.000)
+
+  Excel:    "Institut za medicinska istraživanja i medicinu rada"
+  Registar: "Institut za medicinska istraživanja i medicinu rada" — OIB: 30285469659 (score: 1.000)
+
+  Excel:    "Institut za poljoprivredu i turizam"
+  Registar: "Institut za poljoprivredu i turizam" — OIB: 03850982961 (score: 1.000)
+
+  Excel:    "Hrvatski geološki institut"
+  Registar: "Hrvatski geološki institut" — OIB: 43733878539 (score: 1.000)
+
+  Excel:    "Hrvatski institut za povijest"
+  Registar: "Hrvatski institut za povijest" — OIB: 23296176633 (score: 1.000)
+
+  Excel:    "Staroslavenski institut"
+  Registar: "Staroslavenski institut" — OIB: 15291942541 (score: 1.000)
+
+  Excel:    "Institut za arheologiju"
+  Registar: "Institut za arheologiju" — OIB: 59796264563 (score: 1.000)
+
+  Excel:    "Leksikografski zavod Miroslav Krleža"
+  Registar: "Leksikografski zavod Miroslav Krleža" — OIB: 49894241709 (score: 1.000)
+
+  Excel:    "Institut društvenih znanosti Ivo Pilar"
+  Registar: "Institut društvenih znanosti Ivo Pilar" — OIB: 32840574937 (score: 1.000)
+
+  Excel:    "Hrvatski veterinarski institut"
+  Registar: "Hrvatski veterinarski institut" — OIB: 29059177553 (score: 1.000)
+
+  Excel:    "Institut za vode Josip Juraj Strossmayer"
+  Registar: "Institut za vode Josip Juraj Strossmayer" — OIB: 04716643151 (score: 1.000)
+
+  Excel:    "Institut za javne financije"
+  Registar: "Institut za javne financije" — OIB: 41683226810 (score: 1.000)
+
+  Excel:    "Institut za antropologiju"
+  Registar: "Institut za antropologiju" — OIB: 93710699926 (score: 1.000)
+
+  Excel:    "Institut za filozofiju"
+  Registar: "Institut za filozofiju" — OIB: 43667021597 (score: 1.000)
+
+  Excel:    "Hrvatski šumarski institut"
+  Registar: "Hrvatski šumarski institut" — OIB: 13579392023 (score: 1.000)
+
+  Excel:    "Energetski institut Hrvoje Požar"
+  Registar: "Energetski institut Hrvoje Požar" — OIB: 43980170614 (score: 1.000)
+
+  Excel:    "Klinički bolnički centar Zagreb"
+  Registar: "Klinički bolnički centar Zagreb" — OIB: 46377257342 (score: 1.000)
+
+  Excel:    "Klinički bolnički centar Split"
+  Registar: "Klinički bolnički centar Split" — OIB: 51401063283 (score: 1.000)
+
+  Excel:    "Klinički bolnički centar Rijeka"
+  Registar: "Klinički bolnički centar Rijeka" — OIB: 40237608715 (score: 1.000)
+
+  Excel:    "Klinički bolnički centar Osijek"
+  Registar: "Klinički bolnički centar Osijek" — OIB: 89819375646 (score: 1.000)
+
+  Excel:    "Klinička bolnica Dubrava"
+  Registar: "Klinička bolnica Dubrava" — OIB: 32206148371 (score: 1.000)
+
+  Excel:    "Klinička bolnica Merkur"
+  Registar: "Klinička bolnica Merkur" — OIB: 25883882856 (score: 1.000)
+
+  Excel:    "Klinički bolnički centar Sestre milosrdnice"
+  Registar: "Klinički bolnički centar Sestre milosrdnice" — OIB: 84924656517 (score: 1.000)
+
+  Excel:    "Klinika za dječje bolesti Zagreb"
+  Registar: "Klinika za dječje bolesti Zagreb" — OIB: 70641763756 (score: 1.000)
+
+  Excel:    "Klinika za infektivne bolesti dr.  Fran Mihaljević"
+  Registar: "Klinika za infektivne bolesti Dr. Fran Mihaljević" — OIB: 47767714195 (score: 1.000)
+
+  Excel:    "Hrvatski zavod za javno zdravstvo"
+  Registar: "Hrvatski zavod za javno zdravstvo - HZJZ" — OIB: 75297532041 (score: 0.800)
+
+  Excel:    "Hrvatski zavod za hitnu medicinu"
+  Registar: "Hrvatski zavod za hitnu medicinu" — OIB: 45218167072 (score: 1.000)
+
+  Excel:    "Hrvatski zavod za transfuzijsku medicinu"
+  Registar: "Hrvatski zavod za transfuzijsku medicinu" — OIB: 61248075289 (score: 1.000)
+
+  Excel:    "Javna zdravstvena ustanova Imunološki zavod"
+  Registar: "Javna zdravstvena ustanova Imunološki zavod" — OIB: 51786203438 (score: 1.000)
+
+  Excel:    "Hrvatsko narodno kazalište u Zagrebu"
+  Registar: "Hrvatsko narodno kazalište u Zagrebu" — OIB: 10852199405 (score: 1.000)
+
+  Excel:    "Hrvatsko narodno kazalište u Splitu"
+  Registar: "Hrvatsko narodno kazalište Split" — OIB: 69204356406 (score: 0.600)
+
+  Excel:    "Hrvatski državni arhiv"
+  Registar: "Hrvatski državni arhiv - HDA" — OIB: 46144176176 (score: 0.750)
+
+  Excel:    "Nacionalna i sveučilišna knjižnica u Zagrebu"
+  Registar: "Nacionalna i sveučilišna knjižnica u Zagrebu - NSK" — OIB: 84838770814 (score: 0.800)
+
+  Excel:    "Hrvatski restauratorski zavod"
+  Registar: "Hrvatski restauratorski zavod" — OIB: 08647229584 (score: 1.000)
+
+  Excel:    "Agencija za elektroničke medije"
+  Registar: "Agencija za elektroničke medije" — OIB: 35237547014 (score: 1.000)
+
+  Excel:    "Hrvatski audiovizualni centar"
+  Registar: "Hrvatski audiovizualni centar" — OIB: 27103918402 (score: 1.000)
+
+  Excel:    "Agencija za odgoj i obrazovanje"
+  Registar: "Agencija za odgoj i obrazovanje" — OIB: 72193628411 (score: 1.000)
+
+  Excel:    "Agencija za lijekove i medicinske proizvode (HALMED)"
+  Registar: "Agencija za lijekove i medicinske proizvode - HALMED" — OIB: 37926884937 (score: 1.000)
+
+  Excel:    "Agencija za strukovno obrazovanje i obrazovanje odraslih"
+  Registar: "Agencija za strukovno obrazovanje i obrazovanje odraslih - ASOO" — OIB: 40719411729 (score: 0.800)
+
+  Excel:    "Agencija za znanost i visoko obrazovanje"
+  Registar: "Agencija za znanost i visoko obrazovanje - AZVO" — OIB: 83358955356 (score: 0.800)
+
+  Excel:    "Agencija za mobilnost i programe Europske unije (AMPEU)"
+  Registar: "Agencija za mobilnost i programe Europske unije - AMPEU" — OIB: 25385906011 (score: 1.000)
+
+  Excel:    "Agencija za istraživanje nesreća u zračnom, pomorskom i željezničkom prometu"
+  Registar: "Agencija za istraživanje nesreća u zračnom, pomorskom i željezničkom prometu" — OIB: 40956403978 (score: 1.000)
+
+  Excel:    "Agencija za obalni linijski pomorski promet"
+  Registar: "Agencija za obalni linijski pomorski promet" — OIB: 27735395987 (score: 1.000)
+
+  Excel:    "Nacionalni centar za vanjsko vrednovanje obrazovanja"
+  Registar: "Nacionalni centar za vanjsko vrednovanje obrazovanja" — OIB: 94833993984 (score: 1.000)
+
+  Excel:    "Sveučilište u Zagrebu"
+  Registar: "Sveučilište u Zagrebu" — OIB: 36612267447 (score: 1.000)
+
+  Excel:    "Sveučilište u Zadru"
+  Registar: "Sveučilište u Zadru" — OIB: 10839679016 (score: 1.000)
+
+  Excel:    "Sveučilište u Splitu"
+  Registar: "Sveučilište u Splitu" — OIB: 29845096215 (score: 1.000)
+
+  Excel:    "Sveučilište u Rijeci"
+  Registar: "Sveučilište u Rijeci" — OIB: 64218323816 (score: 1.000)
+
+  Excel:    "Sveučilište u Dubrovniku"
+  Registar: "Sveučilište u Dubrovniku" — OIB: 01338491514 (score: 1.000)
+
+  Excel:    "Sveučilište Josipa Jurja Strossmayera u Osijeku"
+  Registar: "Sveučilište Josipa Jurja Strossmayera u Osijeku" — OIB: 78808975734 (score: 1.000)
+
+  Excel:    "Agencija Alan d.o.o."
+  Registar: "Agencija Alan d.o.o." — OIB: 83317234406 (score: 1.000)
+
+  Excel:    "Centar za restrukturiranje i prodaju (CERP)"
+  Registar: "Centar za restrukturiranje i prodaju - CERP" — OIB: 38083028711 (score: 1.000)
+
+  Excel:    "Croatia Airlines d.d."
+  Registar: "Croatia Airlines d.d." — OIB: 24640993045 (score: 1.000)
+
+  Excel:    "Državne nekretnine d.o.o."
+  Registar: "Državne nekretnine d.o.o." — OIB: 79058504140 (score: 1.000)
+
+  Excel:    "HP - Hrvatska pošta d.d."
+  Registar: "HP - Hrvatska pošta d.d." — OIB: 87311810356 (score: 1.000)
+
+  Excel:    "Hrvatska radiotelevizija (HRT)"
+  Registar: "Hrvatska radiotelevizija - HRT" — OIB: 68419124305 (score: 1.000)
+
+  Excel:    "Hrvatska banka za obnovu i razvitak (HBOR)"
+  Registar: "Hrvatska banka za obnovu i razvitak - HBOR" — OIB: 26702280390 (score: 1.000)
+
+  Excel:    "Hrvatska elektroprivreda d.d. (HEP d.d.)"
+  Registar: "Hrvatska elektroprivreda d.d. - HEP" — OIB: 28921978587 (score: 1.000)
+
+  Excel:    "Hrvatska kontrola zračne plovidbe d.o.o."
+  Registar: "Hrvatska kontrola zračne plovidbe d.o.o." — OIB: 33052761319 (score: 1.000)
+
+  Excel:    "Hrvatska lutrija d.o.o."
+  Registar: "Hrvatska Lutrija d.o.o." — OIB: 27905228158 (score: 1.000)
+
+  Excel:    "Hrvatska poštanska banka d.d. (HPB d.d.)"
+  Registar: "Hrvatska poštanska banka d.d. - HPB d.d." — OIB: 87939104217 (score: 1.000)
+
+  Excel:    "Hrvatske autoceste d.o.o."
+  Registar: "Hrvatske autoceste - HAC d.o.o." — OIB: 57500462912 (score: 0.667)
+
+  Excel:    "Hrvatske ceste d.o.o."
+  Registar: "Hrvatske ceste d.o.o." — OIB: 55545787885 (score: 1.000)
+
+  Excel:    "Hrvatske šume d.o.o."
+  Registar: "Hrvatske šume - HŠ d.o.o." — OIB: 69693144506 (score: 0.667)
+
+  Excel:    "Hrvatske vode"
+  Registar: "Hrvatske vode" — OIB: 28921383001 (score: 1.000)
+
+  Excel:    "Hrvatski operator tržišta energije d.o.o."
+  Registar: "Hrvatski operator tržišta energije d.o.o. - HROTE" — OIB: 75801633608 (score: 0.800)
+
+  Excel:    "HŽ Cargo d.o.o."
+  Registar: "HŽ Cargo d.o.o." — OIB: 08720210702 (score: 1.000)
+
+  Excel:    "HŽ Infrastruktura d.o.o."
+  Registar: "HŽ Infrastruktura d.o.o." — OIB: 39901919995 (score: 1.000)
+
+  Excel:    "HŽ Putnički prijevoz d.o.o."
+  Registar: "HŽ Putnički prijevoz d.o.o." — OIB: 80572192786 (score: 1.000)
+
+  Excel:    "Jadranski naftovod d.d. (Janaf d.d.)"
+  Registar: "Jadranski naftovod - JANAF d.d." — OIB: 89018712265 (score: 1.000)
+
+  Excel:    "Narodne novine d.d."
+  Registar: "Narodne novine d.d." — OIB: 64546066176 (score: 1.000)
+
+  Excel:    "Plovput d.o.o."
+  Registar: "Plovput d.o.o." — OIB: 14480721492 (score: 1.000)
+
+  Excel:    "Zračna luka Dubrovnik d.o.o., Čilipi"
+  Registar: "Zračna luka Dubrovnik d.o.o." — OIB: 63145279942 (score: 0.750)
+
+  Excel:    "Zračna luka Osijek d.o.o., Klisa"
+  Registar: "Zračna luka Osijek d.o.o." — OIB: 48188420009 (score: 0.750)
+
+  Excel:    "Zračna luka Pula d.o.o., Ližnjan"
+  Registar: "Zračna luka Pula d.o.o." — OIB: 51946493681 (score: 0.750)
+
+  Excel:    "Zračna luka Rijeka d.o.o., Omišalj"
+  Registar: "Zračna luka Rijeka d.o.o." — OIB: 37940245720 (score: 0.750)
+
+  Excel:    "Zračna luka Split d.o.o., Kaštel Štafilić"
+  Registar: "Zračna luka Split d.o.o." — OIB: 83462362655 (score: 0.600)
+
+  Excel:    "Zračna luka Zadar d.o.o., Zemunik Donji"
+  Registar: "Zračna luka Zadar d.o.o." — OIB: 39087623202 (score: 0.600)
+
+  Excel:    "Zračna luka Zagreb d.o.o. Zagreb"
+  Registar: "Zračna luka Zagreb d.o.o." — OIB: 60482636839 (score: 1.000)
+
+  Excel:    "Akademija socijalne skrbi"
+  Registar: "Akademija socijalne skrbi" — OIB: 86317641207 (score: 1.000)
+
+  Excel:    "Centar za mirno rješavanje sporova"
+  Registar: "Centar za mirno rješavanje sporova" — OIB: 80113121575 (score: 1.000)
+
+
+⚠️  PRIJEDLOG — PROVJERI RUČNO (8)
+--------------------------------------------------------------------------------
+  Excel: "Ministarstvo financija (Porezna uprava)"
+    [1] "Ministarstvo financija" — OIB: 18683136487 (score: 0.500)
+
+  Excel: "Središnja agencija za financiranje i ugovaranje (SAFU)"
+    [1] "Središnja agencija za financiranje i ugovaranje programa i projekata Europske unije" — OIB: 11548277852 (score: 0.444)
+
+  Excel: "Predsjednik Republike Hrvatske"
+    [1] "Vlada Republike Hrvatske" — OIB: 64434885131 (score: 0.500)
+    [2] "Državno odvjetništvo Republike Hrvatske" — OIB: 43539267895 (score: 0.400)
+    [3] "Ured predsjednika Republike Hrvatske" — OIB: 10162055275 (score: 0.400)
+
+  Excel: "Pravobraniteljica za ravnopravnost spolova"
+    [1] "Pravobranitelj za ravnopravnost spolova" — OIB: 18164416576 (score: 0.500)
+
+  Excel: "Institut za sigurnost"
+    [1] "Institut za antropologiju" — OIB: 93710699926 (score: 0.333)
+    [2] "Institut za arheologiju" — OIB: 59796264563 (score: 0.333)
+    [3] "Institut za filozofiju" — OIB: 43667021597 (score: 0.333)
+
+  Excel: "Agencija za mobilnost i programe EU"
+    [1] "Agencija za mobilnost i programe Europske unije - AMPEU" — OIB: 25385906011 (score: 0.429)
+
+  Excel: "ACI d.d., Rijeka"
+    [1] "Grad Rijeka" — OIB: 54382731928 (score: 0.333)
+    [2] "Rijeka plus d.o.o." — OIB: 83938812619 (score: 0.333)
+    [3] "Rijeka sport d.o.o." — OIB: 73293310543 (score: 0.333)
+
+  Excel: "Jadrolinija, Rijeka"
+    [1] "Grad Rijeka" — OIB: 54382731928 (score: 0.333)
+    [2] "Rijeka plus d.o.o." — OIB: 83938812619 (score: 0.333)
+    [3] "Rijeka sport d.o.o." — OIB: 73293310543 (score: 0.333)
+
+
+❌ BEZ PODUDARANJA (3)
+--------------------------------------------------------------------------------
+  "Institut prometa i veza" — top: "Institut za antropologiju" (0.250)
+  "Državna agencija za osiguranje štednih uloga i sanaciju banaka" — top: "Agencija za osiguranje radničkih tražbina" (0.222)
+  "INA - Industrija nafte d.d." — top: "1. MAJ Labin d.o.o." (0.000)
