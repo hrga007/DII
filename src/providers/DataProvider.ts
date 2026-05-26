@@ -66,6 +66,7 @@ export interface DataProvider {
   ): Promise<void>
   normalizeIssues(batchIds: string[], resolvedBy: string): Promise<number>
   reapplyResolvedIssues(): Promise<{ updated: number; skipped: number }>
+  syncNamesFromRegistry(): Promise<{ updated: number; skipped: number; notFound: number }>
   linkBatchToInstitution(batchId: string, institutionId: string, resolvedBy: string): Promise<void>
 
   // ─── Financial Entries ─────────────────────────────────────────

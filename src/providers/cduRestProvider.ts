@@ -77,6 +77,7 @@ export function createCduRestProvider(_config: CduConfig): DataProvider {
     resolveIssue: () => ni('resolveIssue'),
     normalizeIssues: () => ni('normalizeIssues'),
     reapplyResolvedIssues: () => ni('reapplyResolvedIssues'),
+    syncNamesFromRegistry: () => ni('syncNamesFromRegistry'),
     linkBatchToInstitution: () => ni('linkBatchToInstitution'),
 
     saveFinancialEntries: () => ni('saveFinancialEntries'),
