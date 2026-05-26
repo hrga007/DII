@@ -10,7 +10,7 @@ import { SeverityBadge } from '../components/StatusBadge'
 import { getAppSettings } from '../hooks/useAppSettings'
 import { currentUser } from '../services/authService'
 import { validateOib, formatOibError } from '../utils/oibValidator'
-import { getRegistry } from '../utils/registryLoader'
+import { DII_REGISTRY, DII_REGISTRY_TOTAL } from '../data/diiRegistry'
 
 const YEARS = [2024, 2025, 2026, 2027, 2028]
 
@@ -383,21 +383,17 @@ export function DashboardPage() {
     queryKey: ['institutions'],
     queryFn: () => getProvider().getInstitutions(),
   })
-  const { data: registry } = useQuery({
-    queryKey: ['registry'],
-    queryFn: getRegistry,
-    staleTime: Infinity,
-  })
   const loading = batchLoading || entriesLoading
 
   const activeBatches = batches.filter(b => b.isActive !== false)
   const activeIds     = new Set(activeBatches.map(b => b.id!))
   const activeInstIds = new Set(activeBatches.map(b => b.institutionId).filter(Boolean))
 
-  // OIB-based registry match: institucija je "dostavila" ako joj OIB postoji u registru i ima aktivan batch
-  const registryLinked = registry
-    ? allInstitutions.filter(i => i.id != null && activeInstIds.has(i.id) && registry.byOib.has(i.oib)).length
-    : null
+  // Count how many of the 150 DII reference bodies have an active batch in the app (matched by OIB)
+  const diiOibSet = new Set(DII_REGISTRY.map(e => e.oib).filter(Boolean) as string[])
+  const registryLinked = allInstitutions
+    .filter(i => i.id != null && activeInstIds.has(i.id) && diiOibSet.has(i.oib))
+    .length
 
   const totalErrors   = activeBatches.reduce((s, b) => s + b.errorCount, 0)
   const totalWarnings = activeBatches.reduce((s, b) => s + b.warningCount, 0)
@@ -457,8 +453,8 @@ export function DashboardPage() {
 
       {/* Dostava podataka — summary (dinamički iz aplikacije) */}
       {(() => {
-        const total = registry?.entries.length ?? 5754
-        const linked = registryLinked ?? 0
+        const total = DII_REGISTRY_TOTAL
+        const linked = registryLinked
         const pct = total > 0 ? Math.round((linked / total) * 100) : 0
         const remaining = total - linked
         return (
@@ -472,10 +468,10 @@ export function DashboardPage() {
             </div>
             <div className="flex items-center justify-between text-xs text-gray-500">
               <span>
-                <span className="font-semibold text-emerald-700">{registry ? linked : '…'}</span> s aktivnim batchem ·{' '}
-                <span className="font-semibold text-red-600">{registry ? remaining : '…'}</span> bez uploada
+                <span className="font-semibold text-emerald-700">{linked}</span> s aktivnim batchem ·{' '}
+                <span className="font-semibold text-red-600">{remaining}</span> bez uploada
               </span>
-              <span className="font-semibold text-gray-700">{registry ? `${pct}%` : '…'}</span>
+              <span className="font-semibold text-gray-700">{pct}%</span>
             </div>
           </Link>
         )

@@ -7,7 +7,9 @@ import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
 import { StatusBadge, ActiveBadge } from '../components/StatusBadge'
 import { RegistryLinkModal } from '../components/RegistryLinkModal'
-import { getRegistry, PRAVNI_STATUSI } from '../utils/registryLoader'
+import { getRegistry } from '../utils/registryLoader'
+import { DII_REGISTRY, DII_REGISTRY_TOTAL } from '../data/diiRegistry'
+import type { DiiEntry } from '../data/diiRegistry'
 
 interface InstitutionRow {
   institution: Institution
@@ -33,10 +35,10 @@ interface RegistryViewProps {
 function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProps) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<RegistryFilter>('sve')
-  const [pravniStatusFilter, setPravniStatusFilter] = useState('')
   const [page, setPage] = useState(0)
 
-  const { data: registry, isLoading: registryLoading } = useQuery({
+  // Load full registry for optional grad/pravniStatus details
+  const { data: registry } = useQuery({
     queryKey: ['registry'],
     queryFn: getRegistry,
     staleTime: Infinity,
@@ -52,59 +54,49 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
   )
 
   const stats = useMemo(() => {
-    if (!registry) return null
     let uApp = 0, uRegistru = 0
-    for (const entry of registry.entries) {
+    for (const entry of DII_REGISTRY) {
+      if (!entry.oib) continue
       const inst = institutionByOib.get(entry.oib)
       if (inst) {
         uRegistru++
         if (inst.id != null && activeBatchSet.has(inst.id)) uApp++
       }
     }
-    const total = registry.entries.length
-    return { total, uApp, uRegistru, nijeUpareno: total - uApp }
-  }, [registry, institutionByOib, activeBatchSet])
+    const total = DII_REGISTRY_TOTAL
+    return { total, uApp, uRegistru }
+  }, [institutionByOib, activeBatchSet])
 
   const visibleFiltered = useMemo(() => {
-    if (!registry) return []
     const q = search.trim().toLowerCase()
-    return registry.entries
-      .map(entry => {
-        const inst = institutionByOib.get(entry.oib)
+    return DII_REGISTRY
+      .map((diiEntry: DiiEntry) => {
+        const inst = diiEntry.oib ? institutionByOib.get(diiEntry.oib) : undefined
         const hasActiveBatch = inst?.id != null ? activeBatchSet.has(inst.id) : false
-        return { entry, inst, hasActiveBatch }
+        const regEntry = diiEntry.oib ? registry?.byOib.get(diiEntry.oib) : undefined
+        return { diiEntry, inst, hasActiveBatch, regEntry }
       })
-      .filter(({ entry, inst, hasActiveBatch }) => {
-        if (pravniStatusFilter && entry.pravniStatus !== pravniStatusFilter) return false
+      .filter(({ diiEntry, inst, hasActiveBatch }) => {
         if (filter === 'u_aplikaciji' && !(inst && hasActiveBatch)) return false
         if (filter === 'prepoznato' && (!inst || hasActiveBatch)) return false
         if (filter === 'nije_upareno' && inst) return false
         if (q) {
           const hit =
-            entry.naziv.toLowerCase().includes(q) ||
-            entry.oib.includes(q) ||
-            entry.grad.toLowerCase().includes(q) ||
+            diiEntry.name.toLowerCase().includes(q) ||
+            (diiEntry.oib?.includes(q) ?? false) ||
             (inst?.name.toLowerCase().includes(q) ?? false)
           if (!hit) return false
         }
         return true
       })
-  }, [registry, institutionByOib, activeBatchSet, search, filter, pravniStatusFilter])
+  }, [registry, institutionByOib, activeBatchSet, search, filter])
 
   // Reset na prvu stranicu kad se promijeni filter
-  useEffect(() => setPage(0), [search, filter, pravniStatusFilter])
+  useEffect(() => setPage(0), [search, filter])
 
   const totalPages = Math.max(1, Math.ceil(visibleFiltered.length / PAGE_SIZE))
   const visiblePage = visibleFiltered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-  const pct = stats ? Math.round((stats.uApp / stats.total) * 100) : 0
-
-  if (registryLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
-      </div>
-    )
-  }
+  const pct = Math.round((stats.uApp / stats.total) * 100)
 
   return (
     <div>
@@ -112,22 +104,22 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
       <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-4">
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-semibold text-gray-700">Dostava podataka u aplikaciju</p>
-          <span className="text-sm font-bold text-gray-800">{stats?.uApp ?? '…'} / {stats?.total ?? '…'}</span>
+          <span className="text-sm font-bold text-gray-800">{stats.uApp} / {stats.total}</span>
         </div>
         <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden mb-3">
           <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
         </div>
         <div className="grid grid-cols-3 gap-3 text-center">
           <div>
-            <p className="text-xl font-bold text-emerald-700">{stats?.uApp ?? '…'}</p>
+            <p className="text-xl font-bold text-emerald-700">{stats.uApp}</p>
             <p className="text-xs text-gray-400 mt-0.5">S aktivnim uploadom</p>
           </div>
           <div>
-            <p className="text-xl font-bold text-blue-600">{stats?.uRegistru ?? '…'}</p>
+            <p className="text-xl font-bold text-blue-600">{stats.uRegistru}</p>
             <p className="text-xs text-gray-400 mt-0.5">Prepoznato po OIB-u</p>
           </div>
           <div>
-            <p className="text-xl font-bold text-red-600">{stats ? stats.total - stats.uRegistru : '…'}</p>
+            <p className="text-xl font-bold text-red-600">{stats.total - stats.uRegistru}</p>
             <p className="text-xs text-gray-400 mt-0.5">Nema u aplikaciji</p>
           </div>
         </div>
@@ -135,13 +127,12 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        {/* Status filter chips */}
         <div className="flex gap-1.5 flex-wrap">
           {([
-            { key: 'sve'          as RegistryFilter, label: 'Sva tijela',     count: stats?.total },
-            { key: 'u_aplikaciji' as RegistryFilter, label: 'U aplikaciji',   count: stats?.uApp },
-            { key: 'prepoznato'   as RegistryFilter, label: 'Prepoznato',     count: stats ? stats.uRegistru - stats.uApp : undefined },
-            { key: 'nije_upareno' as RegistryFilter, label: 'Nema u aplik.', count: stats ? stats.total - stats.uRegistru : undefined },
+            { key: 'sve'          as RegistryFilter, label: 'Sva tijela',     count: stats.total },
+            { key: 'u_aplikaciji' as RegistryFilter, label: 'U aplikaciji',   count: stats.uApp },
+            { key: 'prepoznato'   as RegistryFilter, label: 'Prepoznato',     count: stats.uRegistru - stats.uApp },
+            { key: 'nije_upareno' as RegistryFilter, label: 'Nema u aplik.', count: stats.total - stats.uRegistru },
           ]).map(({ key, label, count }) => (
             <button
               key={key}
@@ -150,22 +141,10 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
                 filter === key ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
             >
-              {label}{count !== undefined && <span className="opacity-70 ml-1">({count})</span>}
+              {label}<span className="opacity-70 ml-1">({count})</span>
             </button>
           ))}
         </div>
-
-        {/* Pravni status dropdown */}
-        <select
-          value={pravniStatusFilter}
-          onChange={e => setPravniStatusFilter(e.target.value)}
-          className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Svi pravni statusi</option>
-          {PRAVNI_STATUSI.map(s => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
 
         {/* Search */}
         <div className="relative ml-auto">
@@ -174,7 +153,7 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Naziv, OIB, grad..."
+            placeholder="Naziv ili OIB..."
             className="pl-8 pr-4 py-1.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 w-52"
           />
         </div>
@@ -186,35 +165,46 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
           <p className="p-10 text-center text-gray-400 text-sm">Nema rezultata</p>
         ) : (
           <div className="divide-y divide-gray-100">
-            {visiblePage.map(({ entry, inst, hasActiveBatch }) => {
+            {visiblePage.map(({ diiEntry, inst, hasActiveBatch, regEntry }) => {
               const active = !!inst && hasActiveBatch
               const linked = !!inst
+              const rowKey = diiEntry.oib ?? diiEntry.name
               return (
-                <div key={entry.oib} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50">
+                <div key={rowKey} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50">
                   <span className={`shrink-0 w-2 h-2 rounded-full ${
                     active ? 'bg-emerald-500' : linked ? 'bg-yellow-400' : 'bg-red-400'
                   }`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{entry.naziv}</p>
+                    <p className="text-sm font-medium text-gray-800 truncate">{diiEntry.name}</p>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className="text-xs text-gray-400">OIB: {entry.oib}</span>
-                      {entry.grad && <span className="text-xs text-gray-400">· {entry.grad}</span>}
-                      {entry.email && (
-                        <a href={`mailto:${entry.email}`} className="text-xs text-blue-600 hover:underline truncate hidden sm:inline">
-                          · {entry.email}
+                      {diiEntry.oib
+                        ? <span className="text-xs text-gray-400">OIB: {diiEntry.oib}</span>
+                        : <span className="text-xs text-orange-500">OIB nepoznat</span>
+                      }
+                      {regEntry?.grad && <span className="text-xs text-gray-400">· {regEntry.grad}</span>}
+                      {diiEntry.email && (
+                        <a href={`mailto:${diiEntry.email}`} className="text-xs text-blue-600 hover:underline truncate hidden sm:inline">
+                          · {diiEntry.email}
                         </a>
                       )}
                       {inst && (
                         <span className="text-xs text-gray-400">
-                          · u aplikaciji: <Link to={`/institucije/${inst.id}`} className="text-blue-600 hover:underline">{inst.name}</Link>
+                          · u aplik.: <Link to={`/institucije/${inst.id}`} className="text-blue-600 hover:underline">{inst.name}</Link>
                         </span>
                       )}
                     </div>
-                    {entry.pravniStatus && (
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">{entry.pravniStatus}</p>
+                    {regEntry?.pravniStatus && (
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">{regEntry.pravniStatus}</p>
                     )}
                   </div>
-                  <div className="shrink-0">
+                  <div className="shrink-0 flex items-center gap-2">
+                    {diiEntry.dostava !== 'NE' && diiEntry.dostava !== '' && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        diiEntry.dostava === 'DA' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'
+                      }`}>
+                        Excel: {diiEntry.dostava}
+                      </span>
+                    )}
                     {active ? (
                       <button
                         onClick={() => onRequestLink(inst)}
