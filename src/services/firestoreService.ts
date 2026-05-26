@@ -559,6 +559,27 @@ export async function reapplyResolvedIssues(): Promise<{ updated: number; skippe
   return { updated, skipped }
 }
 
+export async function syncNamesFromRegistry(): Promise<{ updated: number; skipped: number; notFound: number }> {
+  const { DII_REGISTRY } = await import('../data/diiRegistry')
+  const oibToName = new Map<string, string>()
+  for (const entry of DII_REGISTRY) {
+    if (entry.oib) oibToName.set(entry.oib, entry.name)
+  }
+
+  const institutions = await getInstitutions()
+  let updated = 0, skipped = 0, notFound = 0
+
+  for (const inst of institutions) {
+    if (!inst.oib) { skipped++; continue }
+    const registryName = oibToName.get(inst.oib)
+    if (!registryName) { notFound++; continue }
+    if (inst.name.trim() === registryName.trim()) { skipped++; continue }
+    await patchInstitution(inst.id!, { name: registryName })
+    updated++
+  }
+  return { updated, skipped, notFound }
+}
+
 // ─── Installed Resources ─────────────────────────────────────────
 export async function saveInstalledResources(resources: InstalledResource[]): Promise<void> {
   const db = getFirebaseDb()

@@ -143,6 +143,8 @@ export function SettingsPage() {
   const [backendSaved, setBackendSaved] = useState(false)
   const [reapplyStatus, setReapplyStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
   const [reapplyResult, setReapplyResult] = useState<{ updated: number; skipped: number } | null>(null)
+  const [syncNamesStatus, setSyncNamesStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const [syncNamesResult, setSyncNamesResult] = useState<{ updated: number; skipped: number; notFound: number } | null>(null)
 
   // Korisnici state
   const [users, setUsers] = useState<UserProfile[]>([])
@@ -981,6 +983,42 @@ export function SettingsPage() {
                 )}
                 {reapplyStatus === 'error' && (
                   <span className="text-sm text-red-600">Greška pri primjeni — provjeri konzolu</span>
+                )}
+              </div>
+            </div>
+
+            {/* Sinkronizacija naziva iz DII registra */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <p className="text-sm font-semibold text-gray-700 mb-1">Sinkronizacija naziva iz registra</p>
+              <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+                Za svaku instituciju koja ima OIB, pronalazi odgovarajući unos u pouzdanom DII registru
+                (150 tijela) i ispravlja naziv institucije ako se razlikuje. Naziv u registru je mjerodavan.
+              </p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  disabled={syncNamesStatus === 'running'}
+                  onClick={async () => {
+                    setSyncNamesStatus('running')
+                    setSyncNamesResult(null)
+                    try {
+                      const result = await getProvider().syncNamesFromRegistry()
+                      setSyncNamesResult(result)
+                      setSyncNamesStatus('done')
+                    } catch {
+                      setSyncNamesStatus('error')
+                    }
+                  }}
+                  className="text-sm px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {syncNamesStatus === 'running' ? 'Sinkronizacija…' : 'Sinkroniziraj nazive iz registra'}
+                </button>
+                {syncNamesStatus === 'done' && syncNamesResult && (
+                  <span className="text-sm text-emerald-700 font-medium">
+                    ✓ Ažurirano: {syncNamesResult.updated} · Preskočeno: {syncNamesResult.skipped} · Nisu u registru: {syncNamesResult.notFound}
+                  </span>
+                )}
+                {syncNamesStatus === 'error' && (
+                  <span className="text-sm text-red-600">Greška pri sinkronizaciji — provjeri konzolu</span>
                 )}
               </div>
             </div>

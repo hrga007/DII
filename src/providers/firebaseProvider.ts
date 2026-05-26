@@ -40,6 +40,7 @@ export const firebaseProvider: DataProvider = {
   resolveIssue: fs.resolveIssue,
   normalizeIssues: fs.normalizeIssues,
   reapplyResolvedIssues: fs.reapplyResolvedIssues,
+  syncNamesFromRegistry: fs.syncNamesFromRegistry,
   linkBatchToInstitution: fs.linkBatchToInstitution,
 
   // Financial Entries
