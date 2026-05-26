@@ -478,12 +478,14 @@ export function ImportDetailPage() {
   const groups = [...new Set(entries.map((e) => e.categoryGroup))]
   const filteredEntries = filter === 'all' ? entries : entries.filter((e) => e.categoryGroup === filter)
 
+  const unresolvedErrors = issues.filter(i => i.severity === 'error' && !i.resolvedAt)
   const unresolvedWarnings = issues.filter(i => i.severity === 'warning' && !i.resolvedAt)
+  const unresolvedCount = unresolvedErrors.length + unresolvedWarnings.length
 
   const TABS: { key: Tab; label: string; count: number }[] = [
     { key: 'financije', label: 'Financije',  count: entries.length },
     { key: 'resursi',   label: 'Resursi',    count: resources.length },
-    { key: 'issues',    label: 'Poruke',     count: issues.length },
+    { key: 'issues',    label: 'Poruke',     count: unresolvedCount },
   ]
 
   return (
@@ -563,11 +565,11 @@ export function ImportDetailPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm">
-          <span className={batch.errorCount > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}>
-            {batch.errorCount} grešaka
+          <span className={unresolvedErrors.length > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}>
+            {unresolvedErrors.length} grešaka
           </span>
-          <span className={batch.warningCount > 0 ? 'text-yellow-600 font-medium' : 'text-gray-400'}>
-            {batch.warningCount} upozorenja
+          <span className={unresolvedWarnings.length > 0 ? 'text-yellow-600 font-medium' : 'text-gray-400'}>
+            {unresolvedWarnings.length} upozorenja
           </span>
           <span className="text-gray-400">{entries.length} financijskih unosa</span>
           {batch.fileSize != null && (
