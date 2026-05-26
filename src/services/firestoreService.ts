@@ -353,12 +353,16 @@ export async function resolveIssue(
     const field = meta.severity === 'error' ? 'errorCount' : 'warningCount'
     await updateDoc(doc(db, 'importBatches', meta.batchId), { [field]: increment(-1) })
 
-    // Kad se ispravlja OIB, ažuriraj i institution.oib
-    if (meta.fieldName === 'oib' && correctedValue) {
+    // Propagiraj ispravak na institution (fieldName je case-insensitive, npr. 'OIB' ili 'Naziv tijela')
+    const fn = meta.fieldName?.toLowerCase()
+    if (correctedValue && (fn === 'oib' || fn === 'naziv tijela')) {
       const batchSnap = await getDoc(doc(db, 'importBatches', meta.batchId))
       const institutionId = batchSnap.data()?.institutionId as string | undefined
       if (institutionId) {
-        await updateDoc(doc(db, 'institutions', institutionId), { oib: correctedValue })
+        const instUpdate: Record<string, string> = {}
+        if (fn === 'oib') instUpdate.oib = correctedValue
+        if (fn === 'naziv tijela') instUpdate.name = correctedValue
+        await updateDoc(doc(db, 'institutions', institutionId), instUpdate)
       }
     }
   }
