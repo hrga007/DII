@@ -147,6 +147,14 @@ export async function updateInstitutionRegistryIndex(
   await updateDoc(doc(db, 'institutions', institutionId), { registryIndex })
 }
 
+export async function patchInstitution(
+  institutionId: string,
+  fields: Partial<import('../models/institution').Institution>,
+): Promise<void> {
+  const db = getFirebaseDb()
+  await updateDoc(doc(db, 'institutions', institutionId), { ...fields, updatedAt: toTimestamp(new Date()) })
+}
+
 export async function bulkAutoMatchRegistryIndex(): Promise<{
   matched: number
   skipped: number

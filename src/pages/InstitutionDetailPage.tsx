@@ -13,6 +13,7 @@ import { ShareModal } from '../components/ShareModal'
 import type { ShareSnapshot } from '../models/shareLink'
 import { detectAnomalies } from '../utils/anomalies'
 import { computeQualityScore, gradeColor } from '../utils/dataQuality'
+import { formatOibError } from '../utils/oibValidator'
 import { QualityScoreCard } from '../components/QualityScoreCard'
 import { AnomaliesPanel } from '../components/AnomaliesPanel'
 
@@ -513,11 +514,31 @@ export function InstitutionDetailPage() {
   const [resDcFilter, setResDcFilter] = useState('')
   const [resNameFilter, setResNameFilter] = useState('')
   const [shareOpen, setShareOpen] = useState(false)
+  const [oibEdit, setOibEdit] = useState(false)
+  const [oibValue, setOibValue] = useState('')
+  const [oibSaving, setOibSaving] = useState(false)
+  const [oibError, setOibError] = useState('')
   const [issueFilter, setIssueFilter] = useState<'sve' | 'nerijesene' | 'rijesene'>('sve')
   const [diffOpen, setDiffOpen] = useState(false)
   const [activityLogs, setActivityLogs] = useState<AuditLog[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
   const [activityFetched, setActivityFetched] = useState(false)
+
+  async function handleOibSave() {
+    if (!institution?.id) return
+    const err = formatOibError(oibValue)
+    if (err) { setOibError(err); return }
+    setOibSaving(true)
+    try {
+      await getProvider().patchInstitution(institution.id, { oib: oibValue.trim() })
+      setInstitution(prev => prev ? { ...prev, oib: oibValue.trim() } : prev)
+      setOibEdit(false)
+      setOibError('')
+    } finally {
+      setOibSaving(false)
+    }
+  }
+
   useEffect(() => {
     if (!id) return
     setLoading(true)
@@ -643,7 +664,41 @@ export function InstitutionDetailPage() {
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold text-gray-800 truncate">{institution.name}</h1>
-            <p className="text-sm text-gray-500 mt-0.5">OIB: {institution.oib}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              {oibEdit ? (
+                <>
+                  <input
+                    autoFocus
+                    type="text"
+                    value={oibValue}
+                    onChange={e => { setOibValue(e.target.value); setOibError('') }}
+                    onKeyDown={e => { if (e.key === 'Enter') handleOibSave(); if (e.key === 'Escape') setOibEdit(false) }}
+                    placeholder="11 znamenki"
+                    maxLength={11}
+                    className={`text-sm border rounded-lg px-2 py-0.5 w-36 focus:outline-none focus:ring-2 ${oibError ? 'border-red-400 focus:ring-red-300' : 'border-gray-300 focus:ring-blue-400'}`}
+                  />
+                  <button onClick={handleOibSave} disabled={oibSaving} className="text-xs px-2.5 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+                    {oibSaving ? '…' : 'Spremi'}
+                  </button>
+                  <button onClick={() => { setOibEdit(false); setOibError('') }} className="text-xs px-2.5 py-1 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">
+                    Odustani
+                  </button>
+                  {oibError && <span className="text-xs text-red-600">{oibError}</span>}
+                </>
+              ) : (
+                <>
+                  <span className={`text-sm ${institution.oib ? 'text-gray-500' : 'text-orange-500 font-medium'}`}>
+                    OIB: {institution.oib || 'nije unesen'}
+                  </span>
+                  <button
+                    onClick={() => { setOibValue(institution.oib || ''); setOibEdit(true); setOibError('') }}
+                    className="text-xs px-2 py-0.5 rounded-md border border-gray-200 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
+                  >
+                    Uredi
+                  </button>
+                </>
+              )}
+            </div>
           </div>
           <div className="flex flex-wrap gap-4 text-sm text-gray-500">
             {institution.contactName && <span>👤 {institution.contactName}</span>}

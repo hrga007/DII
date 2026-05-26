@@ -143,8 +143,9 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
             </h2>
             {!loading && (
               <p className="text-xs text-gray-400 mt-0.5">
-                {activeIssues.length} {mode === 'error' ? 'grešaka' : 'upozorenja'} u{' '}
-                {batchIds.length} batch-eva
+                {unresolvedCount} neriješenih
+                {resolvedCount > 0 && ` · ${resolvedCount} riješeno`}
+                {' · '}{batchIds.length} uvoza
               </p>
             )}
           </div>
@@ -374,6 +375,7 @@ export function DashboardPage() {
     setModal(null)
     queryClient.invalidateQueries({ queryKey: ['batches'] })
     queryClient.invalidateQueries({ queryKey: ['institutions'] })
+    queryClient.invalidateQueries({ queryKey: ['issues'] })
   }, [queryClient])
 
   const { data: batches = [], isLoading: batchLoading } = useQuery({
@@ -400,8 +402,19 @@ export function DashboardPage() {
     .filter(i => i.id != null && activeInstIds.has(i.id) && diiOibSet.has(i.oib))
     .length
 
-  const totalErrors   = activeBatches.reduce((s, b) => s + b.errorCount, 0)
-  const totalWarnings = activeBatches.reduce((s, b) => s + b.warningCount, 0)
+  // Računamo iz stvarnih neriješenih issues (pouzdanije od batch.errorCount koji može biti zastario)
+  const { data: errorIssues = [] } = useQuery({
+    queryKey: ['issues', 'error'],
+    queryFn: () => getProvider().getAllImportIssues('error'),
+    staleTime: 60_000,
+  })
+  const { data: warnIssues = [] } = useQuery({
+    queryKey: ['issues', 'warning'],
+    queryFn: () => getProvider().getAllImportIssues('warning'),
+    staleTime: 60_000,
+  })
+  const totalErrors   = errorIssues.filter(i => !i.resolvedAt && activeIds.has(i.batchId)).length
+  const totalWarnings = warnIssues.filter(i => !i.resolvedAt && activeIds.has(i.batchId)).length
   const institutions  = new Set(activeBatches.map(b => b.institutionId).filter(Boolean)).size
 
   const activeEntries = entries.filter(e => activeIds.has(e.batchId))
