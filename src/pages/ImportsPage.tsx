@@ -48,7 +48,7 @@ export function ImportsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-xl font-bold text-gray-800">Import batch-evi</h1>
+        <h1 className="text-xl font-bold text-gray-800">Import uvozi</h1>
         <Link
           to="/upload"
           className="btn-primary text-sm px-4 py-2 rounded-lg"

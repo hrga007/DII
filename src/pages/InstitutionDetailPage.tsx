@@ -613,7 +613,7 @@ export function InstitutionDetailPage() {
 
   const TABS: { key: Tab; label: string; count?: number }[] = [
     { key: 'financije', label: 'Financijski pregled' },
-    { key: 'batches', label: 'Batch-evi', count: batches.length },
+    { key: 'batches', label: 'Uvozi', count: batches.length },
     { key: 'resursi', label: 'Resursi', count: resources.length },
     { key: 'greske', label: 'Greške i upozorenja', count: issues.filter((i) => !i.resolvedAt).length || undefined },
     { key: 'kvaliteta', label: 'Kvaliteta podataka', count: anomalies.length || undefined },
@@ -677,7 +677,7 @@ export function InstitutionDetailPage() {
         {/* Quick stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">
           {[
-            { label: 'Batch-evi', value: batches.length, sub: batches.find(b => b.isActive) ? '1 aktivan' : 'nema aktivnog' },
+            { label: 'Uvozi', value: batches.length, sub: batches.find(b => b.isActive) ? '1 aktivan' : 'nema aktivnog' },
             { label: 'Financ. unosa', value: entries.length.toLocaleString('hr-HR'), sub: 'iz aktivnog batcha' },
             { label: 'Resursi', value: resources.length, sub: undefined },
             { label: 'Neriješene greške', value: issues.filter((i) => !i.resolvedAt && i.severity === 'error').length, sub: undefined },
@@ -759,7 +759,7 @@ export function InstitutionDetailPage() {
         <BatchDiffModal batches={batches} onClose={() => setDiffOpen(false)} />
       )}
 
-      {/* Tab: Batch-evi */}
+      {/* Tab: Uvozi */}
       {tab === 'batches' && (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">

@@ -83,7 +83,7 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
     try {
       const user = currentUser()
       if (!user || !iss.id) return
-      await getProvider().resolveIssue(iss.id, user.uid, 'MANUAL_EDIT', editValue.trim(), editNote.trim() || undefined, { batchId: iss.batchId, severity: iss.severity })
+      await getProvider().resolveIssue(iss.id, user.uid, 'MANUAL_EDIT', editValue.trim(), editNote.trim() || undefined, { batchId: iss.batchId, severity: iss.severity, fieldName: iss.fieldName })
       await getProvider().addAuditLog({
         userId: user.uid,
         action: 'manual_correction',
@@ -186,7 +186,7 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
                 batchFilter === 'all' ? 'act-bg act-tx' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              Svi batch-evi ({issues.length})
+              Svi uvozi ({issues.length})
             </button>
             {batchIds.map(bid => {
               const b = batchMap.get(bid)
@@ -373,6 +373,7 @@ export function DashboardPage() {
   const closeModal = useCallback(() => {
     setModal(null)
     queryClient.invalidateQueries({ queryKey: ['batches'] })
+    queryClient.invalidateQueries({ queryKey: ['institutions'] })
   }, [queryClient])
 
   const { data: batches = [], isLoading: batchLoading } = useQuery({
@@ -439,7 +440,7 @@ export function DashboardPage() {
 
       {/* Stat kartice */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        <StatCard label="Batch-evi"   value={activeBatches.length} color="blue" />
+        <StatCard label="Uvozi"   value={activeBatches.length} color="blue" />
         <StatCard label="Institucije" value={institutions}   color="green" />
         <StatCard
           label="Greške"

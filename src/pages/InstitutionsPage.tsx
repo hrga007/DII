@@ -169,6 +169,7 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
               const active = !!inst && hasActiveBatch
               const linked = !!inst
               const rowKey = diiEntry.oib ?? diiEntry.name
+              const nameMismatch = inst && regEntry && inst.name.trim() !== regEntry.naziv.trim()
               return (
                 <div key={rowKey} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50">
                   <span className={`shrink-0 w-2 h-2 rounded-full ${
@@ -193,7 +194,12 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
                         </span>
                       )}
                     </div>
-                    {regEntry?.pravniStatus && (
+                    {nameMismatch && (
+                      <p className="text-xs text-amber-600 mt-0.5 truncate" title={`Naziv u registru: "${regEntry!.naziv}"`}>
+                        ⚠ Naziv se razlikuje od registra: &ldquo;{regEntry!.naziv}&rdquo;
+                      </p>
+                    )}
+                    {!nameMismatch && regEntry?.pravniStatus && (
                       <p className="text-xs text-gray-400 mt-0.5 truncate">{regEntry.pravniStatus}</p>
                     )}
                   </div>
@@ -451,7 +457,7 @@ export function InstitutionsPage() {
             onChange={(e) => setSort(e.target.value as SortKey)}
             className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="batches_desc">Sortiraj: po batch-evima</option>
+            <option value="batches_desc">Sortiraj: po uvozima</option>
             <option value="abecedno">Sortiraj: A–Z</option>
             <option value="datum_desc">Sortiraj: najnoviji upload</option>
             <option value="greske_desc">Sortiraj: najviše grešaka</option>
@@ -463,7 +469,7 @@ export function InstitutionsPage() {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
         {[
           { label: 'Institucije',    value: rows.length, icon: '🏛️', sub: undefined },
-          { label: 'Batch-evi ukupno', value: rows.reduce((s, r) => s + r.batches.length, 0), icon: '📦', sub: `${rows.filter((r) => r.activeBatch !== null).length} s aktivnim` },
+          { label: 'Uvozi ukupno', value: rows.reduce((s, r) => s + r.batches.length, 0), icon: '📦', sub: `${rows.filter((r) => r.activeBatch !== null).length} s aktivnim` },
           { label: 'Financ. unosa', value: rows.reduce((s, r) => s + r.activeEntries, 0).toLocaleString('hr-HR'), icon: '📊', sub: 'iz aktivnih batcheva' },
         ].map(({ label, value, icon, sub }) => (
           <div key={label} className="bg-white rounded-2xl border border-gray-200 p-4">
@@ -531,7 +537,7 @@ export function InstitutionsPage() {
 
                   {/* Stats */}
                   <div className="hidden sm:flex items-center gap-4 text-sm text-gray-500 mr-2">
-                    <span title="Batch-evi">
+                    <span title="Uvozi">
                       <span className="font-semibold text-gray-700">{row.batches.length}</span>
                       <span className="text-xs ml-1">
                         {row.batches.length === 1 ? 'batch' : 'batch-eva'}

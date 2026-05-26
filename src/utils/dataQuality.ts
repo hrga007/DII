@@ -76,7 +76,7 @@ export function computeQualityScore(input: {
     max: 15,
     passed: hasActiveBatch || !hasBatch,
     hint: hasBatch && !hasActiveBatch
-      ? 'Postoje batch-evi ali ni jedan nije označen kao aktivan'
+      ? 'Postoje uvozi ali ni jedan nije označen kao aktivan'
       : undefined,
   })
 
@@ -134,7 +134,7 @@ export function computeQualityScore(input: {
     hint: multiYear ? undefined : 'Trendovi i usporedbe traže barem 2 godine podataka',
   })
 
-  // 10. Sve batch-evi povezani na instituciju (5 bodova)
+  // 10. Sve uvozi povezani na instituciju (5 bodova)
   const unlinked = batches.filter(b => !b.institutionId).length
   const allLinked = unlinked === 0
   factors.push({

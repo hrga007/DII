@@ -61,7 +61,7 @@ export interface DataProvider {
     resolvedMethod: IssueResolutionMethod,
     correctedValue?: string,
     resolutionNote?: string,
-    meta?: { batchId: string; severity: 'error' | 'warning' },
+    meta?: { batchId: string; severity: 'error' | 'warning'; fieldName?: string },
   ): Promise<void>
   normalizeIssues(batchIds: string[], resolvedBy: string): Promise<number>
   linkBatchToInstitution(batchId: string, institutionId: string, resolvedBy: string): Promise<void>

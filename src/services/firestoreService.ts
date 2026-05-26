@@ -320,13 +320,14 @@ export async function supersedeBatch(
 }
 
 // Označava grešku/upozorenje kao riješeno s audit trakom.
+// Kad je fieldName === 'oib', automatski ažurira i institution.oib.
 export async function resolveIssue(
   issueId: string,
   resolvedBy: string,
   resolvedMethod: IssueResolutionMethod,
   correctedValue?: string,
   resolutionNote?: string,
-  meta?: { batchId: string; severity: 'error' | 'warning' }
+  meta?: { batchId: string; severity: 'error' | 'warning'; fieldName?: string }
 ): Promise<void> {
   const db = getFirebaseDb()
   await setDoc(
@@ -343,6 +344,15 @@ export async function resolveIssue(
   if (meta) {
     const field = meta.severity === 'error' ? 'errorCount' : 'warningCount'
     await updateDoc(doc(db, 'importBatches', meta.batchId), { [field]: increment(-1) })
+
+    // Kad se ispravlja OIB, ažuriraj i institution.oib
+    if (meta.fieldName === 'oib' && correctedValue) {
+      const batchSnap = await getDoc(doc(db, 'importBatches', meta.batchId))
+      const institutionId = batchSnap.data()?.institutionId as string | undefined
+      if (institutionId) {
+        await updateDoc(doc(db, 'institutions', institutionId), { oib: correctedValue })
+      }
+    }
   }
 }
 
