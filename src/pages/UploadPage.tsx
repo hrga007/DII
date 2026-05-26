@@ -362,7 +362,7 @@ export function UploadPage() {
       <div className="grid grid-cols-3 gap-3 mb-5">
         {[
           {
-            label: 'Batch-evi ukupno',
+            label: 'Uvozi ukupno',
             value: batchLoad ? '…' : (batchCount ?? '–'),
           },
           {
@@ -406,7 +406,7 @@ export function UploadPage() {
             tab === 'batches' ? 'act-bg act-tx' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
           }`}
         >
-          📋 Batch-evi
+          📋 Uvozi
           {batchCount !== null && (
             <span className="ml-2 text-xs px-1.5 py-0.5 rounded-full"
               style={tab === 'batches'

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getProvider } from '../providers'
 import { runImport } from '../services/importService'
@@ -182,6 +183,7 @@ interface TipAModalProps {
 }
 
 function TipAModal({ issue, onClose, onSaved }: TipAModalProps) {
+  const queryClient = useQueryClient()
   const [value, setValue] = useState(issue.correctedValue ?? issue.originalValue ?? '')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
@@ -208,7 +210,7 @@ function TipAModal({ issue, onClose, onSaved }: TipAModalProps) {
     try {
       const user = currentUser()
       if (!user) return
-      await getProvider().resolveIssue(issue.id, user.uid, 'MANUAL_EDIT', value.trim(), note.trim() || undefined)
+      await getProvider().resolveIssue(issue.id, user.uid, 'MANUAL_EDIT', value.trim(), note.trim() || undefined, { batchId: issue.batchId, severity: issue.severity, fieldName: issue.fieldName })
       await getProvider().addAuditLog({
         userId: user.uid,
         action: 'manual_correction',
@@ -217,6 +219,9 @@ function TipAModal({ issue, onClose, onSaved }: TipAModalProps) {
         timestamp: new Date(),
         details: { field: issue.fieldName, correctedValue: value.trim() },
       })
+      if (issue.fieldName === 'oib') {
+        queryClient.invalidateQueries({ queryKey: ['institutions'] })
+      }
       onSaved()
     } finally {
       setSaving(false)
@@ -492,7 +497,7 @@ export function ImportDetailPage() {
         </Link>
       ) : (
         <Link to="/imports" className="inline-flex items-center gap-1 text-sm p-tx hover:underline mb-4">
-          ← Batch-evi
+          ← Uvozi
         </Link>
       )}
 
