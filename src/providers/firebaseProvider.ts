@@ -18,6 +18,7 @@ export const firebaseProvider: DataProvider = {
   getInstitutions: fs.getInstitutions,
   getInstitutionById: fs.getInstitutionById,
   updateInstitutionRegistryIndex: fs.updateInstitutionRegistryIndex,
+  patchInstitution: fs.patchInstitution,
   bulkAutoMatchRegistryIndex: fs.bulkAutoMatchRegistryIndex,
 
   // Batches
