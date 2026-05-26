@@ -39,6 +39,7 @@ export const firebaseProvider: DataProvider = {
   getImportIssuesByInstitution: fs.getImportIssuesByInstitution,
   resolveIssue: fs.resolveIssue,
   normalizeIssues: fs.normalizeIssues,
+  reapplyResolvedIssues: fs.reapplyResolvedIssues,
   linkBatchToInstitution: fs.linkBatchToInstitution,
 
   // Financial Entries

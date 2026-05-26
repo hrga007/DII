@@ -16,6 +16,7 @@ import {
   type UserProfile, type Role,
 } from '../services/userService'
 import { ShareLinksAdmin } from '../components/ShareLinksAdmin'
+import { getProvider } from '../providers'
 
 const FB_FIELDS: { key: keyof FirebaseConfig; label: string; placeholder: string }[] = [
   { key: 'apiKey',            label: 'API Key',             placeholder: 'AIzaSy...' },
@@ -140,6 +141,8 @@ export function SettingsPage() {
   const [backend, setBackend] = useState<BackendSettings>(() => loadBackendSettings())
   const [cduCfg, setCduCfg] = useState<CduConfig>(backend.cdu ?? EMPTY_CDU)
   const [backendSaved, setBackendSaved] = useState(false)
+  const [reapplyStatus, setReapplyStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const [reapplyResult, setReapplyResult] = useState<{ updated: number; skipped: number } | null>(null)
 
   // Korisnici state
   const [users, setUsers] = useState<UserProfile[]>([])
@@ -942,6 +945,43 @@ export function SettingsPage() {
                     </button>
                   )}
                 </div>
+              </div>
+            </div>
+
+            {/* Migracija: retroaktivni ispravci OIB-a i naziva */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <p className="text-sm font-semibold text-gray-700 mb-1">Retroaktivna primjena ispravaka</p>
+              <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+                Skenira sve ručno riješene greške OIB-a i naziva tijela te primijeni ispravke
+                na institucije koje još imaju staru vrijednost. Korisno ako su greške ispravke
+                bile riješene prije nadogradnje koja je uvela automatsku propagaciju.
+              </p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  disabled={reapplyStatus === 'running'}
+                  onClick={async () => {
+                    setReapplyStatus('running')
+                    setReapplyResult(null)
+                    try {
+                      const result = await getProvider().reapplyResolvedIssues()
+                      setReapplyResult(result)
+                      setReapplyStatus('done')
+                    } catch {
+                      setReapplyStatus('error')
+                    }
+                  }}
+                  className="text-sm px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {reapplyStatus === 'running' ? 'Primjenjujem…' : 'Pokreni retroaktivni ispravak'}
+                </button>
+                {reapplyStatus === 'done' && reapplyResult && (
+                  <span className="text-sm text-emerald-700 font-medium">
+                    ✓ Ažurirano: {reapplyResult.updated} · Preskočeno: {reapplyResult.skipped}
+                  </span>
+                )}
+                {reapplyStatus === 'error' && (
+                  <span className="text-sm text-red-600">Greška pri primjeni — provjeri konzolu</span>
+                )}
               </div>
             </div>
 
