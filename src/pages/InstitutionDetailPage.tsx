@@ -508,6 +508,7 @@ export function InstitutionDetailPage() {
   const [entries, setEntries] = useState<FinancialEntry[]>([])
   const [resources, setResources] = useState<InstalledResource[]>([])
   const [issues, setIssues] = useState<ImportIssue[]>([])
+  const [issuesLoaded, setIssuesLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('financije')
@@ -543,6 +544,7 @@ export function InstitutionDetailPage() {
     if (!id) return
     setLoading(true)
     setLoadError(null)
+    setIssuesLoaded(false)
 
     // Instituciju dohvaćamo direktnim getDoc — ne ovisi ni o jednom indexu
     getProvider().getInstitutionById(id)
@@ -561,7 +563,10 @@ export function InstitutionDetailPage() {
           if (batchRes.status === 'fulfilled') setBatches(batchRes.value)
           if (entryRes.status === 'fulfilled') setEntries(entryRes.value)
           if (resRes.status === 'fulfilled') setResources(resRes.value)
-          if (issueRes.status === 'fulfilled') setIssues(issueRes.value)
+          if (issueRes.status === 'fulfilled') {
+            setIssues(issueRes.value)
+            setIssuesLoaded(true)
+          }
 
           // Ako je nešto palo, pokaži upozorenje (vjerojatno Firestore index)
           const failed = [batchRes, entryRes, resRes, issueRes].filter(r => r.status === 'rejected')
@@ -600,6 +605,17 @@ export function InstitutionDetailPage() {
       : null,
     [institution, batches, entries, resources, issues],
   )
+  const unresolvedIssueCountsByBatch = useMemo(() => {
+    const counts = new Map<string, { errorCount: number; warningCount: number }>()
+    issues.forEach((issue) => {
+      if (issue.resolvedAt) return
+      const current = counts.get(issue.batchId) ?? { errorCount: 0, warningCount: 0 }
+      if (issue.severity === 'error') current.errorCount += 1
+      if (issue.severity === 'warning') current.warningCount += 1
+      counts.set(issue.batchId, current)
+    })
+    return counts
+  }, [issues])
 
   if (loading) {
     return (
@@ -856,12 +872,21 @@ export function InstitutionDetailPage() {
                   <div className="flex items-center gap-2 shrink-0">
                     <ActiveBadge isActive={b.isActive} />
                     <StatusBadge status={b.processingStatus} />
-                    {b.errorCount > 0 && (
-                      <span className="text-xs text-red-600">{b.errorCount} grešaka</span>
-                    )}
-                    {b.warningCount > 0 && (
-                      <span className="text-xs text-yellow-600">{b.warningCount} upoz.</span>
-                    )}
+                    {(() => {
+                      const derivedCounts = b.id ? unresolvedIssueCountsByBatch.get(b.id) : undefined
+                      const errorCount = issuesLoaded ? (derivedCounts?.errorCount ?? 0) : b.errorCount
+                      const warningCount = issuesLoaded ? (derivedCounts?.warningCount ?? 0) : b.warningCount
+                      return (
+                        <>
+                          {errorCount > 0 && (
+                            <span className="text-xs text-red-600">{errorCount} grešaka</span>
+                          )}
+                          {warningCount > 0 && (
+                            <span className="text-xs text-yellow-600">{warningCount} upoz.</span>
+                          )}
+                        </>
+                      )
+                    })()}
                     <span className="text-gray-300 text-sm">›</span>
                   </div>
                 </Link>
