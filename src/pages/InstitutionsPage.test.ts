@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { filterAndSortRows } from './InstitutionsPage'
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
+import type { ImportIssue } from '../models/financialEntry'
+import { countUnresolvedIssuesByBatch } from '../utils/issueCounts'
 
 const NOW = new Date('2025-01-01')
 
@@ -43,6 +45,34 @@ function makeRow(
     lastUpload,
   }
 }
+
+function makeIssue(overrides: Partial<ImportIssue> = {}): ImportIssue {
+  return {
+    batchId: 'b1',
+    severity: 'error',
+    sheetName: 'Opći podaci',
+    rowLabel: 'R2',
+    fieldName: 'Naziv tijela',
+    message: 'Test issue',
+    originalValue: '',
+    createdAt: NOW,
+    ...overrides,
+  }
+}
+
+describe('countUnresolvedIssuesByBatch', () => {
+  it('counts only unresolved issues by batch', () => {
+    const counts = countUnresolvedIssuesByBatch([
+      makeIssue({ batchId: 'b1', severity: 'error' }),
+      makeIssue({ batchId: 'b1', severity: 'warning' }),
+      makeIssue({ batchId: 'b1', severity: 'error', resolvedAt: NOW }),
+      makeIssue({ batchId: 'b2', severity: 'error' }),
+    ])
+
+    expect(counts.get('b1')).toEqual({ errorCount: 1, warningCount: 1 })
+    expect(counts.get('b2')).toEqual({ errorCount: 1, warningCount: 0 })
+  })
+})
 
 describe('filterAndSortRows', () => {
   const rows = [

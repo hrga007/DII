@@ -16,6 +16,7 @@ import {
   increment,
 } from 'firebase/firestore'
 import { getFirebaseDb } from '../config/firebase'
+import { countUnresolvedIssuesByBatch } from '../utils/issueCounts'
 import { findBestMatch } from '../utils/registryMatcher'
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
@@ -31,6 +32,44 @@ function toTimestamp(d: Date): Timestamp {
 
 function fromTimestamp(t: Timestamp): Date {
   return t.toDate()
+}
+
+async function applyCurrentIssueCounts(batches: ImportBatch[]): Promise<ImportBatch[]> {
+  const batchIds = [...new Set(batches.map((b) => b.id).filter(Boolean) as string[])]
+  if (batchIds.length === 0) return batches
+
+  try {
+    const db = getFirebaseDb()
+    const issues: Pick<ImportIssue, 'batchId' | 'severity' | 'resolvedAt'>[] = []
+    const CHUNK = 10
+    for (let i = 0; i < batchIds.length; i += CHUNK) {
+      const snap = await getDocs(
+        query(collection(db, 'importIssues'), where('batchId', 'in', batchIds.slice(i, i + CHUNK)))
+      )
+      snap.docs.forEach((d) => {
+        const data = d.data()
+        issues.push({
+          batchId: data.batchId,
+          severity: data.severity,
+          resolvedAt: data.resolvedAt,
+        })
+      })
+    }
+
+    const countsByBatch = countUnresolvedIssuesByBatch(issues)
+    return batches.map((batch) => {
+      if (!batch.id) return batch
+      const counts = countsByBatch.get(batch.id)
+      return {
+        ...batch,
+        errorCount: counts?.errorCount ?? 0,
+        warningCount: counts?.warningCount ?? 0,
+      }
+    })
+  } catch (err) {
+    console.warn('Could not refresh issue counts for batches', err)
+    return batches
+  }
 }
 
 type BatchLite = {
@@ -220,12 +259,13 @@ export async function getBatches(): Promise<ImportBatch[]> {
   const snap = await getDocs(
     query(collection(db, 'importBatches'), orderBy('uploadedAt', 'desc'))
   )
-  return snap.docs
+  const batches = snap.docs
     .map((d) => {
       const data = d.data()
       return { ...data, id: d.id, uploadedAt: fromTimestamp(data.uploadedAt) } as ImportBatch
     })
     .filter((b) => b.isDeleted !== true)
+  return applyCurrentIssueCounts(batches)
 }
 
 export async function getBatch(id: string): Promise<ImportBatch | null> {
@@ -266,12 +306,13 @@ export async function getBatchesByInstitution(institutionId: string): Promise<Im
       orderBy('uploadedAt', 'desc')
     )
   )
-  return snap.docs
+  const batches = snap.docs
     .map((d) => {
       const data = d.data()
       return { ...data, id: d.id, uploadedAt: fromTimestamp(data.uploadedAt) } as ImportBatch
     })
     .filter((b) => b.isDeleted !== true)
+  return applyCurrentIssueCounts(batches)
 }
 
 // Deaktivira sve batcheve institucije i postavlja novi kao aktivan.
