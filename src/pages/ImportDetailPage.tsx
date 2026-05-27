@@ -480,6 +480,7 @@ export function ImportDetailPage() {
 
   const unresolvedErrors = issues.filter(i => i.severity === 'error' && !i.resolvedAt)
   const unresolvedWarnings = issues.filter(i => i.severity === 'warning' && !i.resolvedAt)
+  const unresolvedIssues = issues.filter(i => !i.resolvedAt)
   const unresolvedCount = unresolvedErrors.length + unresolvedWarnings.length
 
   const TABS: { key: Tab; label: string; count: number }[] = [
@@ -907,13 +908,13 @@ export function ImportDetailPage() {
       {/* ── Issues ── */}
       {tab === 'issues' && (
         <div className="space-y-2">
-          {issues.length === 0 ? (
+          {unresolvedIssues.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center text-gray-400">
               <p className="text-3xl mb-2">✅</p>
-              <p>Nema grešaka ni upozorenja</p>
+              <p>Nema neriješenih grešaka ni upozorenja</p>
             </div>
           ) : (
-            issues.map((iss) => {
+            unresolvedIssues.map((iss) => {
               const canFixTipA = iss.sheetName === 'Opći podaci' && TIP_A_FIELDS.includes(iss.fieldName)
               const isResolved = !!iss.resolvedAt
               return (
