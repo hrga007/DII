@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -417,7 +417,7 @@ export function ImportDetailPage() {
   const [tipAIssue, setTipAIssue] = useState<ImportIssue | null>(null)
   const [showRegistryModal, setShowRegistryModal] = useState(false)
 
-  async function reload() {
+  const reload = useCallback(async () => {
     if (!id) return
     const [b, e, iss, res] = await Promise.all([
       getProvider().getBatch(id), getProvider().getFinancialEntries(id), getProvider().getImportIssues(id), getProvider().getInstalledResources(id),
@@ -427,11 +427,11 @@ export function ImportDetailPage() {
       const inst = await getProvider().getInstitutionById(b.institutionId)
       setInstitution(inst)
     }
-  }
+  }, [id])
 
   useEffect(() => {
     reload().finally(() => setLoading(false))
-  }, [id])
+  }, [reload])
 
   if (loading) {
     return (

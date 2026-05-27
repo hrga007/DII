@@ -9,7 +9,7 @@ function tokenize(name: string): Set<string> {
   return new Set(
     name
       .toLowerCase()
-      .replace(/[().,\-]/g, ' ')
+      .replace(/[().,-]/g, ' ')
       .split(/\s+/)
       .map(t => t.replace(/\.$/, ''))
       .filter(t => t.length > 1 && !STOP_WORDS.has(t))

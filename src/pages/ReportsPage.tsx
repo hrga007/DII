@@ -190,7 +190,7 @@ export function ReportsPage() {
     )
   }
 
-  const SortIcon = ({ col }: { col: SortCol }) =>
+  const renderSortIcon = (col: SortCol) =>
     sortCol === col ? (
       <span className="ml-1 text-xs">{sortDir === 'asc' ? '▲' : '▼'}</span>
     ) : (
@@ -391,19 +391,19 @@ export function ReportsPage() {
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">
                     <button className="flex items-center hover:text-blue-700 transition-colors" onClick={() => toggleSort('name')}>
-                      Institucija <SortIcon col="name" />
+                      Institucija {renderSortIcon('name')}
                     </button>
                   </th>
                   {visibleCats.map((cat) => (
                     <th key={cat} className="text-right px-3 py-3 font-semibold text-gray-600 whitespace-nowrap">
                       <button className="flex items-center justify-end hover:text-blue-700 transition-colors" onClick={() => toggleSort(cat)}>
-                        {CAT_LABELS[cat]} <SortIcon col={cat} />
+                        {CAT_LABELS[cat]} {renderSortIcon(cat)}
                       </button>
                     </th>
                   ))}
                   <th className="text-right px-4 py-3 font-semibold text-gray-700 whitespace-nowrap">
                     <button className="flex items-center justify-end hover:text-blue-700 transition-colors" onClick={() => toggleSort('Ukupno')}>
-                      Ukupno <SortIcon col="Ukupno" />
+                      Ukupno {renderSortIcon('Ukupno')}
                     </button>
                   </th>
                 </tr>

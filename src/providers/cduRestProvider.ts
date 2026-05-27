@@ -50,6 +50,7 @@ function ni(method: string): never {
  * koji dokumentira oblik budućeg API-ja.
  */
 export function createCduRestProvider(_config: CduConfig): DataProvider {
+  void _config
   return {
     name: 'CDU REST (placeholder)',
 
