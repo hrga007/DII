@@ -35,6 +35,20 @@ function fmtSize(bytes: number) {
     : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+function normalizeScope(value?: string): string {
+  return (value ?? '').trim().toLowerCase()
+}
+
+function batchScope(batch: ImportBatch): string {
+  return normalizeScope(batch.importSummary?.institutionName || batch.fileName)
+}
+
+function sameBatchScope(a: ImportBatch, b: ImportBatch): boolean {
+  const aScope = batchScope(a)
+  const bScope = batchScope(b)
+  return aScope !== '' && aScope === bScope
+}
+
 // ─── Status badge boja ────────────────────────────────────────────
 const STATUS_STYLE: Record<ItemStatus, { bg: string; text: string; label: string }> = {
   previewing: { bg: 'bg-gray-100',   text: 'text-gray-500',  label: 'Analiza...' },
@@ -606,6 +620,10 @@ export function UploadPage() {
                     {batches.map((b) => {
                       const isConfirm  = confirmId  === b.id
                       const isDeleting = deletingId === b.id
+                      const hasSameScopeActive = Boolean(
+                        b.institutionId && !b.isActive && b.processingStatus === 'completed' &&
+                        (batchesByInstitution.get(b.institutionId) ?? []).some((x) => x.isActive && sameBatchScope(x, b))
+                      )
                       return (
                         <tr
                           key={b.id}
@@ -646,8 +664,7 @@ export function UploadPage() {
                                 <>
                                   {supersedingId === b.id ? (
                                     <span className="animate-spin h-4 w-4 border-2 border-blue-400 border-t-transparent rounded-full" />
-                                  ) : b.institutionId && !b.isActive && b.processingStatus === 'completed' &&
-                                    (batchesByInstitution.get(b.institutionId) ?? []).some((x) => x.isActive) && (
+                                  ) : hasSameScopeActive && (
                                     <button
                                       onClick={() => setSupersedePick({ newId: b.id!, institutionId: b.institutionId! })}
                                       className="text-xs px-2.5 py-1.5 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors whitespace-nowrap"
@@ -682,9 +699,11 @@ export function UploadPage() {
 
       {/* Modal: odabir batcha koji se zamjenjuje */}
       {supersedePick && (() => {
+        const newBatch = batches?.find((x) => x.id === supersedePick.newId)
         const candidates = (batchesByInstitution.get(supersedePick.institutionId) ?? [])
           .filter((x) => x.isActive || x.processingStatus === 'completed')
           .filter((x) => x.id !== supersedePick.newId)
+          .filter((x) => newBatch ? sameBatchScope(x, newBatch) : true)
         return (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center p-4"

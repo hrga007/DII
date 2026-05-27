@@ -15,6 +15,7 @@ interface InstitutionRow {
   institution: Institution
   batches: ImportBatch[]
   activeBatch: ImportBatch | null
+  activeBatchCount: number
   activeEntries: number
   lastUpload: Date | null
 }
@@ -326,13 +327,15 @@ export function InstitutionsPage() {
   const rows = useMemo(() => {
     const mapped: InstitutionRow[] = institutions.map((inst) => {
       const ibs = batches.filter((b) => b.institutionId === inst.id)
-      const activeBatch = ibs.find((b) => b.isActive) ?? null
-      const activeEntries = activeBatch ? (activeBatch.importSummary?.financialEntriesCount ?? 0) : 0
+      const activeBatches = ibs.filter((b) => b.isActive)
+      const activeBatch = activeBatches[0] ?? null
+      const activeEntries = activeBatches.reduce((sum, b) => sum + (b.importSummary?.financialEntriesCount ?? 0), 0)
       const dates = ibs.map((b) => b.uploadedAt.getTime())
       return {
         institution: inst,
         batches: ibs,
         activeBatch,
+        activeBatchCount: activeBatches.length,
         activeEntries,
         lastUpload: dates.length ? new Date(Math.max(...dates)) : null,
       }
@@ -469,7 +472,7 @@ export function InstitutionsPage() {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
         {[
           { label: 'Institucije',    value: rows.length, icon: '🏛️', sub: undefined },
-          { label: 'Uvozi ukupno', value: rows.reduce((s, r) => s + r.batches.length, 0), icon: '📦', sub: `${rows.filter((r) => r.activeBatch !== null).length} s aktivnim` },
+          { label: 'Uvozi ukupno', value: rows.reduce((s, r) => s + r.batches.length, 0), icon: '📦', sub: `${rows.reduce((s, r) => s + r.activeBatchCount, 0)} aktivnih` },
           { label: 'Financ. unosa', value: rows.reduce((s, r) => s + r.activeEntries, 0).toLocaleString('hr-HR'), icon: '📊', sub: 'iz aktivnih batcheva' },
         ].map(({ label, value, icon, sub }) => (
           <div key={label} className="bg-white rounded-2xl border border-gray-200 p-4">
@@ -542,11 +545,11 @@ export function InstitutionsPage() {
                       <span className="text-xs ml-1">
                         {row.batches.length === 1 ? 'batch' : 'batch-eva'}
                         {row.batches.length > 1 && (
-                          <span className="ml-1 text-amber-600">({row.batches.filter(b => b.isActive).length} aktivan)</span>
+                          <span className="ml-1 text-amber-600">({row.activeBatchCount} aktivnih)</span>
                         )}
                       </span>
                     </span>
-                    <span title="Financijski unosi iz aktivnog batcha">
+                    <span title="Financijski unosi iz aktivnih batcheva">
                       <span className={`font-semibold ${hasErrors ? 'text-red-600' : 'text-gray-700'}`}>
                         {row.activeEntries}
                       </span>

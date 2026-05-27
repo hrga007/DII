@@ -92,6 +92,37 @@ function batchScopeKey(batch: BatchLite): string {
   return `${inst}::${branch || file}`
 }
 
+function toBatchLite(id: string, data: Record<string, unknown>, institutionFallback?: string): BatchLite {
+  return {
+    id,
+    institutionId: (data.institutionId as string | undefined) ?? institutionFallback,
+    uploadedAt: fromTimestamp(data.uploadedAt as Timestamp),
+    isActive: data.isActive as boolean | undefined,
+    fileName: data.fileName as string | undefined,
+    importSummary: data.importSummary as { institutionName?: string } | undefined,
+  }
+}
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size))
+  return chunks
+}
+
+async function getActiveBatchIdsByInstitution(institutionId: string): Promise<string[]> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(
+    query(
+      collection(db, 'importBatches'),
+      where('institutionId', '==', institutionId),
+      where('isActive', '==', true)
+    )
+  )
+  return snap.docs
+    .filter((d) => d.data().isDeleted !== true)
+    .map((d) => d.id)
+}
+
 async function reconcileLegacyActiveBatches(): Promise<void> {
   const db = getFirebaseDb()
   const snap = await getDocs(query(collection(db, 'importBatches'), orderBy('uploadedAt', 'desc')))
@@ -100,16 +131,10 @@ async function reconcileLegacyActiveBatches(): Promise<void> {
   const byInstitution = new Map<string, BatchLite[]>()
   snap.docs.forEach((d) => {
     const data = d.data()
+    if (data.isDeleted === true) return
     if (!data.institutionId) return
     const arr = byInstitution.get(data.institutionId) ?? []
-    arr.push({
-      id: d.id,
-      institutionId: data.institutionId,
-      uploadedAt: fromTimestamp(data.uploadedAt),
-      isActive: data.isActive,
-      fileName: data.fileName,
-      importSummary: data.importSummary,
-    })
+    arr.push(toBatchLite(d.id, data))
     byInstitution.set(data.institutionId, arr)
   })
 
@@ -315,10 +340,13 @@ export async function getBatchesByInstitution(institutionId: string): Promise<Im
   return applyCurrentIssueCounts(batches)
 }
 
-// Deaktivira sve batcheve institucije i postavlja novi kao aktivan.
-// Pozivati kod svakog novog uvoza za istu instituciju.
+// Aktivira batch samo unutar istog scopea (institucija + naziv tijela/podruznica).
 export async function activateBatch(batchId: string, institutionId: string): Promise<void> {
   const db = getFirebaseDb()
+  const targetSnap = await getDoc(doc(db, 'importBatches', batchId))
+  if (!targetSnap.exists()) return
+  const targetScope = batchScopeKey(toBatchLite(batchId, targetSnap.data(), institutionId))
+
   const existing = await getDocs(
     query(
       collection(db, 'importBatches'),
@@ -328,9 +356,12 @@ export async function activateBatch(batchId: string, institutionId: string): Pro
   )
   const wb = writeBatch(db)
   existing.docs.forEach((d) => {
-    if (d.id !== batchId) wb.update(d.ref, { isActive: false })
+    const data = d.data()
+    if (d.id !== batchId && data.isDeleted !== true && batchScopeKey(toBatchLite(d.id, data)) === targetScope) {
+      wb.update(d.ref, { isActive: false })
+    }
   })
-  wb.update(doc(db, 'importBatches', batchId), { isActive: true })
+  wb.update(doc(db, 'importBatches', batchId), { isActive: true, institutionId })
   await wb.commit()
 }
 
@@ -348,24 +379,10 @@ export async function supersedeBatch(
   })
   wb.update(doc(db, 'importBatches', newBatchId), {
     isActive: true,
+    institutionId,
     supersedesId: oldBatchId,
   })
   await wb.commit()
-  // Deaktiviraj sve ostale aktivne batcheve iste institucije
-  const others = await getDocs(
-    query(
-      collection(db, 'importBatches'),
-      where('institutionId', '==', institutionId),
-      where('isActive', '==', true)
-    )
-  )
-  if (!others.empty) {
-    const wb2 = writeBatch(db)
-    others.docs.forEach((d) => {
-      if (d.id !== newBatchId) wb2.update(d.ref, { isActive: false })
-    })
-    await wb2.commit()
-  }
 }
 
 async function refreshBatchIssueCounts(batchId: string): Promise<void> {
@@ -465,6 +482,22 @@ export async function normalizeIssues(
 }
 
 // Povezuje batch bez institucije s postojećom ili novom institucijom.
+async function updateBatchChildrenInstitutionId(batchId: string, institutionId: string): Promise<void> {
+  const db = getFirebaseDb()
+  const childCollections = ['financialEntries', 'installedResources'] as const
+
+  for (const childCollection of childCollections) {
+    const snap = await getDocs(
+      query(collection(db, childCollection), where('batchId', '==', batchId))
+    )
+    for (const docs of chunkArray(snap.docs, 400)) {
+      const wb = writeBatch(db)
+      docs.forEach((d) => wb.update(d.ref, { institutionId }))
+      await wb.commit()
+    }
+  }
+}
+
 export async function linkBatchToInstitution(
   batchId: string,
   institutionId: string,
@@ -472,6 +505,7 @@ export async function linkBatchToInstitution(
 ): Promise<void> {
   const db = getFirebaseDb()
   await setDoc(doc(db, 'importBatches', batchId), { institutionId }, { merge: true })
+  await updateBatchChildrenInstitutionId(batchId, institutionId)
 
   // Označi sve greške tipa "Opći podaci" kao riješene
   const issuesSnap = await getDocs(
@@ -525,17 +559,19 @@ export async function getFinancialEntries(batchId: string): Promise<FinancialEnt
 export async function getAllFinancialEntries(): Promise<FinancialEntry[]> {
   await reconcileLegacyActiveBatches()
   const db = getFirebaseDb()
-  // Dohvaćamo samo unose iz aktivnih batcheva — svaka institucija ima max jedan aktivan
+  // Dohvacamo samo unose iz aktivnih, neobrisanih batcheva.
   const activeBatchesSnap = await getDocs(
     query(collection(db, 'importBatches'), where('isActive', '==', true))
   )
   if (activeBatchesSnap.empty) return []
-  const activeBatchIds = activeBatchesSnap.docs.map((d) => d.id)
+  const activeBatchIds = activeBatchesSnap.docs
+    .filter((d) => d.data().isDeleted !== true)
+    .map((d) => d.id)
+  if (activeBatchIds.length === 0) return []
   const results: FinancialEntry[] = []
-  const CHUNK = 10 // Firestore 'in' operator limit
-  for (let i = 0; i < activeBatchIds.length; i += CHUNK) {
+  for (const ids of chunkArray(activeBatchIds, 10)) {
     const snap = await getDocs(
-      query(collection(db, 'financialEntries'), where('batchId', 'in', activeBatchIds.slice(i, i + CHUNK)))
+      query(collection(db, 'financialEntries'), where('batchId', 'in', ids))
     )
     snap.docs.forEach((d) => {
       const data = d.data()
@@ -670,35 +706,40 @@ export async function getInstalledResources(batchId: string): Promise<InstalledR
 export async function getFinancialEntriesByInstitution(institutionId: string): Promise<FinancialEntry[]> {
   await reconcileLegacyActiveBatches()
   const db = getFirebaseDb()
-  // Dohvaćamo samo unose iz aktivnog batcha — prikazuje se ono što ulazi u izvješće
-  const activeBatchSnap = await getDocs(
-    query(
-      collection(db, 'importBatches'),
-      where('institutionId', '==', institutionId),
-      where('isActive', '==', true),
-      limit(1)
+  // Dohvacamo sve aktivne scopeove institucije, npr. vise podruznica pod istim OIB-om.
+  const activeBatchIds = await getActiveBatchIdsByInstitution(institutionId)
+  if (activeBatchIds.length === 0) return []
+
+  const results: FinancialEntry[] = []
+  for (const ids of chunkArray(activeBatchIds, 10)) {
+    const snap = await getDocs(
+      query(collection(db, 'financialEntries'), where('batchId', 'in', ids))
     )
-  )
-  if (activeBatchSnap.empty) return []
-  const activeBatchId = activeBatchSnap.docs[0].id
-  const snap = await getDocs(
-    query(collection(db, 'financialEntries'), where('batchId', '==', activeBatchId))
-  )
-  return snap.docs.map((d) => {
-    const data = d.data()
-    return { ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as FinancialEntry
-  })
+    snap.docs.forEach((d) => {
+      const data = d.data()
+      results.push({ ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as FinancialEntry)
+    })
+  }
+  return results
 }
 
 export async function getInstalledResourcesByInstitution(institutionId: string): Promise<InstalledResource[]> {
+  await reconcileLegacyActiveBatches()
   const db = getFirebaseDb()
-  const snap = await getDocs(
-    query(collection(db, 'installedResources'), where('institutionId', '==', institutionId))
-  )
-  return snap.docs.map((d) => {
-    const data = d.data()
-    return { ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as InstalledResource
-  })
+  const activeBatchIds = await getActiveBatchIdsByInstitution(institutionId)
+  if (activeBatchIds.length === 0) return []
+
+  const results: InstalledResource[] = []
+  for (const ids of chunkArray(activeBatchIds, 10)) {
+    const snap = await getDocs(
+      query(collection(db, 'installedResources'), where('batchId', 'in', ids))
+    )
+    snap.docs.forEach((d) => {
+      const data = d.data()
+      results.push({ ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as InstalledResource)
+    })
+  }
+  return results
 }
 
 export async function getImportIssuesByInstitution(institutionId: string): Promise<ImportIssue[]> {
