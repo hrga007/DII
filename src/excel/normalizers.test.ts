@@ -13,7 +13,22 @@ describe('normalizeAmount', () => {
   it('parses float string', () => expect(normalizeAmount('1234.56')).toBe(1234.56))
   it('parses comma decimal', () => expect(normalizeAmount('1234,56')).toBe(1234.56))
   it('parses string with spaces', () => expect(normalizeAmount('1 234')).toBe(1234))
+  it('parses Croatian thousands and decimal separators', () => {
+    expect(normalizeAmount('1.234,56')).toBe(1234.56)
+    expect(normalizeAmount('1.234.567,89')).toBe(1234567.89)
+  })
+  it('parses English thousands and decimal separators', () => {
+    expect(normalizeAmount('1,234.56')).toBe(1234.56)
+    expect(normalizeAmount('1,234,567.89')).toBe(1234567.89)
+  })
+  it('parses spaced Croatian decimals', () => expect(normalizeAmount('1 234,56')).toBe(1234.56))
+  it('parses grouped whole numbers', () => {
+    expect(normalizeAmount('1.234')).toBe(1234)
+    expect(normalizeAmount('1,234')).toBe(1234)
+  })
   it('returns null for non-numeric string', () => expect(normalizeAmount('abc')).toBeNull())
+  it('returns null for malformed grouping', () => expect(normalizeAmount('12.34.567')).toBeNull())
+  it('returns null for repeated decimal separators', () => expect(normalizeAmount('1.234,567,89')).toBeNull())
 })
 
 describe('normalizeText', () => {

@@ -40,6 +40,7 @@ interface IssuesModalProps {
 type ResolutionFilter = 'all' | 'unresolved' | 'resolved'
 
 function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
+  const queryClient = useQueryClient()
   const [issues,      setIssues]      = useState<ImportIssue[]>([])
   const [loading,     setLoading]     = useState(true)
   const [batchFilter, setBatchFilter] = useState<string>('all')
@@ -96,7 +97,12 @@ function IssuesModal({ mode, batches, onClose }: IssuesModalProps) {
         ? { ...i, resolvedAt: new Date(), resolvedBy: user.uid, resolvedMethod: 'MANUAL_EDIT', correctedValue: editValue.trim(), resolutionNote: editNote.trim() || undefined }
         : i
       ))
+      queryClient.invalidateQueries({ queryKey: ['allFinancialEntries'] })
+      queryClient.invalidateQueries({ queryKey: ['batches'] })
+      queryClient.invalidateQueries({ queryKey: ['issues', mode] })
       closeEditor()
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Greška pri spremanju ispravka')
     } finally {
       setSaving(false)
     }

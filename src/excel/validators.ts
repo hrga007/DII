@@ -1,5 +1,6 @@
 import type { ImportIssue } from '../models/financialEntry'
 import { validateOib } from '../utils/oibValidator'
+import { isSpecialValue, normalizeAmount } from './normalizers'
 
 export interface ValidationContext {
   batchId: string
@@ -73,9 +74,8 @@ export function validateNumericOrSpecial(
   if (value === null || value === '' || value === undefined) return null
   if (typeof value === 'number') return null
   const trimmed = String(value).trim().toUpperCase()
-  if (trimmed === 'NP' || trimmed === 'NE' || trimmed === '-') return null
-  const parsed = parseFloat(trimmed.replace(',', '.'))
-  if (isNaN(parsed)) {
+  if (isSpecialValue(trimmed)) return null
+  if (normalizeAmount(value) === null) {
     return {
       batchId: ctx.batchId,
       severity: 'warning',

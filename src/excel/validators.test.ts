@@ -60,4 +60,11 @@ describe('validateNumericOrSpecial', () => {
   it('returns null for parseable float string', () => {
     expect(validateNumericOrSpecial('1234.56', 'amount', 'R1', ctx)).toBeNull()
   })
+  it('returns null for Croatian formatted amount', () => {
+    expect(validateNumericOrSpecial('1.234,56', 'amount', 'R1', ctx)).toBeNull()
+  })
+  it('returns warning for malformed grouped amount', () => {
+    const issue = validateNumericOrSpecial('12.34.567', 'amount', 'R1', ctx)
+    expect(issue?.severity).toBe('warning')
+  })
 })

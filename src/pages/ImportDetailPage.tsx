@@ -224,6 +224,8 @@ function TipAModal({ issue, onClose, onSaved }: TipAModalProps) {
         queryClient.invalidateQueries({ queryKey: ['institutions'] })
       }
       onSaved()
+    } catch (err) {
+      setValidationError(err instanceof Error ? err.message : 'Greška pri spremanju ispravka')
     } finally {
       setSaving(false)
     }

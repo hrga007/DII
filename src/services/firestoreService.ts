@@ -16,6 +16,7 @@ import {
   increment,
 } from 'firebase/firestore'
 import { getFirebaseDb } from '../config/firebase'
+import { isSpecialValue, normalizeAmount } from '../excel/normalizers'
 import { countUnresolvedIssuesByBatch } from '../utils/issueCounts'
 import { findBestMatch } from '../utils/registryMatcher'
 import type { Institution } from '../models/institution'
@@ -109,18 +110,47 @@ function chunkArray<T>(items: T[], size: number): T[][] {
   return chunks
 }
 
-async function getActiveBatchIdsByInstitution(institutionId: string): Promise<string[]> {
+function financialEntryFromDoc(
+  id: string,
+  data: Record<string, unknown>,
+  batchInstitutions?: Map<string, string>
+): FinancialEntry {
+  const batchId = data.batchId as string
+  return {
+    ...data,
+    id,
+    institutionId: batchInstitutions?.get(batchId) ?? data.institutionId,
+    createdAt: fromTimestamp(data.createdAt as Timestamp),
+  } as FinancialEntry
+}
+
+function installedResourceFromDoc(
+  id: string,
+  data: Record<string, unknown>,
+  batchInstitutions?: Map<string, string>
+): InstalledResource {
+  const batchId = data.batchId as string
+  return {
+    ...data,
+    id,
+    institutionId: batchInstitutions?.get(batchId) ?? data.institutionId,
+    createdAt: fromTimestamp(data.createdAt as Timestamp),
+  } as InstalledResource
+}
+
+async function getActiveBatchInstitutionMap(institutionId?: string): Promise<Map<string, string>> {
   const db = getFirebaseDb()
-  const snap = await getDocs(
-    query(
-      collection(db, 'importBatches'),
-      where('institutionId', '==', institutionId),
-      where('isActive', '==', true)
-    )
-  )
-  return snap.docs
-    .filter((d) => d.data().isDeleted !== true)
-    .map((d) => d.id)
+  const constraints = institutionId
+    ? [where('institutionId', '==', institutionId), where('isActive', '==', true)]
+    : [where('isActive', '==', true)]
+  const snap = await getDocs(query(collection(db, 'importBatches'), ...constraints))
+  const batchInstitutions = new Map<string, string>()
+  snap.docs.forEach((d) => {
+    const data = d.data()
+    if (data.isDeleted === true || !data.institutionId) return
+    batchInstitutions.set(d.id, data.institutionId as string)
+  })
+  return batchInstitutions
 }
 
 async function reconcileLegacyActiveBatches(): Promise<void> {
@@ -405,6 +435,80 @@ async function refreshBatchIssueCounts(batchId: string): Promise<void> {
 
 // Označava grešku/upozorenje kao riješeno s audit trakom.
 // Kad je fieldName === 'oib', automatski ažurira i institution.oib.
+const FINANCIAL_SHEET_NAMES = new Set([
+  'CAPEX infrastruktura',
+  'Održavanje',
+  'Operativni troškovi',
+  'Licence i softver',
+  'Cloud trošak po pružatelju',
+])
+
+function parseFinancialIssueLocator(issue: Record<string, unknown>): {
+  batchId: string
+  sourceSheet: string
+  sourceRowIndex: number
+  year: number
+  valueType: 'realizirano' | 'planirano'
+} | null {
+  const batchId = issue.batchId as string | undefined
+  const sourceSheet = issue.sheetName as string | undefined
+  const rowLabel = issue.rowLabel as string | undefined
+  const fieldName = issue.fieldName as string | undefined
+  if (!batchId || !sourceSheet || !rowLabel || !fieldName) return null
+  if (!FINANCIAL_SHEET_NAMES.has(sourceSheet)) return null
+
+  const fieldMatch = /^(\d{4})\s+(realizirano|planirano)$/i.exec(fieldName.trim())
+  const rowMatch = /^R(\d+)$/i.exec(rowLabel.trim())
+  if (!fieldMatch || !rowMatch) return null
+
+  return {
+    batchId,
+    sourceSheet,
+    sourceRowIndex: Number(rowMatch[1]) - 1,
+    year: Number(fieldMatch[1]),
+    valueType: fieldMatch[2].toLowerCase() as 'realizirano' | 'planirano',
+  }
+}
+
+async function applyFinancialIssueCorrection(
+  db: ReturnType<typeof getFirebaseDb>,
+  issue: Record<string, unknown>,
+  correctedValue: string
+): Promise<void> {
+  const locator = parseFinancialIssueLocator(issue)
+  if (!locator) return
+
+  const normalizedValue = normalizeAmount(correctedValue)
+  if (normalizedValue === null && !isSpecialValue(correctedValue)) {
+    throw new Error('Ispravljena vrijednost nije valjani broj niti oznaka NP/NE/-.')
+  }
+
+  const snap = await getDocs(
+    query(collection(db, 'financialEntries'), where('batchId', '==', locator.batchId))
+  )
+  const matches = snap.docs.filter((d) => {
+    const data = d.data()
+    return data.sourceSheet === locator.sourceSheet &&
+      data.sourceRowIndex === locator.sourceRowIndex &&
+      data.year === locator.year &&
+      data.valueType === locator.valueType
+  })
+
+  if (matches.length !== 1) {
+    throw new Error(
+      matches.length === 0
+        ? 'Nije pronađen financijski zapis za ovu korekciju. Potreban je re-upload ili ručna provjera.'
+        : 'Pronađeno je više financijskih zapisa za ovu korekciju. Potrebna je ručna provjera.'
+    )
+  }
+
+  await updateDoc(matches[0].ref, {
+    rawValue: correctedValue,
+    amount: normalizedValue,
+    normalizedValue,
+  })
+}
+
 export async function resolveIssue(
   issueId: string,
   resolvedBy: string,
@@ -414,8 +518,15 @@ export async function resolveIssue(
   meta?: { batchId: string; severity: 'error' | 'warning'; fieldName?: string }
 ): Promise<void> {
   const db = getFirebaseDb()
+  const issueRef = doc(db, 'importIssues', issueId)
+  const existingIssueSnap = await getDoc(issueRef)
+  if (correctedValue !== undefined && resolvedMethod === 'MANUAL_EDIT') {
+    if (!existingIssueSnap.exists()) throw new Error('Greška za korekciju nije pronađena.')
+    await applyFinancialIssueCorrection(db, existingIssueSnap.data(), correctedValue)
+  }
+
   await setDoc(
-    doc(db, 'importIssues', issueId),
+    issueRef,
     {
       resolvedAt: toTimestamp(new Date()),
       resolvedBy,
@@ -560,13 +671,8 @@ export async function getAllFinancialEntries(): Promise<FinancialEntry[]> {
   await reconcileLegacyActiveBatches()
   const db = getFirebaseDb()
   // Dohvacamo samo unose iz aktivnih, neobrisanih batcheva.
-  const activeBatchesSnap = await getDocs(
-    query(collection(db, 'importBatches'), where('isActive', '==', true))
-  )
-  if (activeBatchesSnap.empty) return []
-  const activeBatchIds = activeBatchesSnap.docs
-    .filter((d) => d.data().isDeleted !== true)
-    .map((d) => d.id)
+  const activeBatchInstitutions = await getActiveBatchInstitutionMap()
+  const activeBatchIds = [...activeBatchInstitutions.keys()]
   if (activeBatchIds.length === 0) return []
   const results: FinancialEntry[] = []
   for (const ids of chunkArray(activeBatchIds, 10)) {
@@ -575,7 +681,7 @@ export async function getAllFinancialEntries(): Promise<FinancialEntry[]> {
     )
     snap.docs.forEach((d) => {
       const data = d.data()
-      results.push({ ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as FinancialEntry)
+      results.push(financialEntryFromDoc(d.id, data, activeBatchInstitutions))
     })
   }
   return results
@@ -707,7 +813,8 @@ export async function getFinancialEntriesByInstitution(institutionId: string): P
   await reconcileLegacyActiveBatches()
   const db = getFirebaseDb()
   // Dohvacamo sve aktivne scopeove institucije, npr. vise podruznica pod istim OIB-om.
-  const activeBatchIds = await getActiveBatchIdsByInstitution(institutionId)
+  const activeBatchInstitutions = await getActiveBatchInstitutionMap(institutionId)
+  const activeBatchIds = [...activeBatchInstitutions.keys()]
   if (activeBatchIds.length === 0) return []
 
   const results: FinancialEntry[] = []
@@ -717,7 +824,7 @@ export async function getFinancialEntriesByInstitution(institutionId: string): P
     )
     snap.docs.forEach((d) => {
       const data = d.data()
-      results.push({ ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as FinancialEntry)
+      results.push(financialEntryFromDoc(d.id, data, activeBatchInstitutions))
     })
   }
   return results
@@ -726,7 +833,8 @@ export async function getFinancialEntriesByInstitution(institutionId: string): P
 export async function getInstalledResourcesByInstitution(institutionId: string): Promise<InstalledResource[]> {
   await reconcileLegacyActiveBatches()
   const db = getFirebaseDb()
-  const activeBatchIds = await getActiveBatchIdsByInstitution(institutionId)
+  const activeBatchInstitutions = await getActiveBatchInstitutionMap(institutionId)
+  const activeBatchIds = [...activeBatchInstitutions.keys()]
   if (activeBatchIds.length === 0) return []
 
   const results: InstalledResource[] = []
@@ -736,7 +844,7 @@ export async function getInstalledResourcesByInstitution(institutionId: string):
     )
     snap.docs.forEach((d) => {
       const data = d.data()
-      results.push({ ...data, id: d.id, createdAt: fromTimestamp(data.createdAt) } as InstalledResource)
+      results.push(installedResourceFromDoc(d.id, data, activeBatchInstitutions))
     })
   }
   return results
