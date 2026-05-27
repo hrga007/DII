@@ -327,6 +327,24 @@ export async function supersedeBatch(
   }
 }
 
+async function refreshBatchIssueCounts(batchId: string): Promise<void> {
+  const db = getFirebaseDb()
+  const snap = await getDocs(
+    query(collection(db, 'importIssues'), where('batchId', '==', batchId))
+  )
+  let errorCount = 0
+  let warningCount = 0
+
+  snap.docs.forEach((d) => {
+    const data = d.data()
+    if (data.resolvedAt) return
+    if (data.severity === 'error') errorCount += 1
+    if (data.severity === 'warning') warningCount += 1
+  })
+
+  await updateDoc(doc(db, 'importBatches', batchId), { errorCount, warningCount })
+}
+
 // Označava grešku/upozorenje kao riješeno s audit trakom.
 // Kad je fieldName === 'oib', automatski ažurira i institution.oib.
 export async function resolveIssue(
@@ -350,9 +368,6 @@ export async function resolveIssue(
     { merge: true }
   )
   if (meta) {
-    const field = meta.severity === 'error' ? 'errorCount' : 'warningCount'
-    await updateDoc(doc(db, 'importBatches', meta.batchId), { [field]: increment(-1) })
-
     // Propagiraj ispravak na institution (fieldName je case-insensitive, npr. 'OIB' ili 'Naziv tijela')
     const fn = meta.fieldName?.toLowerCase()
     if (correctedValue && (fn === 'oib' || fn === 'naziv tijela')) {
@@ -365,6 +380,7 @@ export async function resolveIssue(
         await updateDoc(doc(db, 'institutions', institutionId), instUpdate)
       }
     }
+    await refreshBatchIssueCounts(meta.batchId)
   }
 }
 
@@ -384,9 +400,10 @@ export async function normalizeIssues(
         where('severity', '==', 'warning')
       )
     )
-    const toResolve = issuesSnap.docs.filter((d) =>
-      NP_VARIANTS.includes(d.data().originalValue)
-    )
+    const toResolve = issuesSnap.docs.filter((d) => {
+      const data = d.data()
+      return !data.resolvedAt && NP_VARIANTS.includes(data.originalValue)
+    })
     const CHUNK = 400
     for (let i = 0; i < toResolve.length; i += CHUNK) {
       const wb = writeBatch(db)
@@ -400,6 +417,7 @@ export async function normalizeIssues(
       })
       await wb.commit()
     }
+    if (toResolve.length > 0) await refreshBatchIssueCounts(batchId)
     total += toResolve.length
   }
   return total
@@ -418,9 +436,11 @@ export async function linkBatchToInstitution(
   const issuesSnap = await getDocs(
     query(collection(db, 'importIssues'), where('batchId', '==', batchId))
   )
-  const toResolve = issuesSnap.docs.filter((d) =>
-    d.data().message?.includes('Opći podaci') || d.data().fieldName === 'institutionId'
-  )
+  const toResolve = issuesSnap.docs.filter((d) => {
+    const data = d.data()
+    return !data.resolvedAt &&
+      (data.message?.includes('Opći podaci') || data.fieldName === 'institutionId')
+  })
   if (toResolve.length > 0) {
     const wb = writeBatch(db)
     toResolve.forEach((d) => {
@@ -432,6 +452,7 @@ export async function linkBatchToInstitution(
       })
     })
     await wb.commit()
+    await refreshBatchIssueCounts(batchId)
   }
 }
 
