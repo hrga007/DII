@@ -37,11 +37,13 @@ function makeRow(
   lastUpload: Date | null = null,
 ) {
   const activeBatch = batches.find((b) => b.isActive) ?? null
+  const activeBatches = batches.filter((b) => b.isActive)
   return {
     institution,
     batches,
     activeBatch,
-    activeEntries: 0,
+    activeBatchCount: activeBatches.length,
+    activeEntries: activeBatches.reduce((sum, b) => sum + (b.importSummary?.financialEntriesCount ?? 0), 0),
     lastUpload,
   }
 }
