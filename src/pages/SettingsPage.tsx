@@ -45,13 +45,14 @@ const EMPTY_CDU: CduConfig = {
 
 // ── Shared helpers ────────────────────────────────────────────────
 function PillBtn({
-  active, onClick, children,
-}: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  active, onClick, children, disabled = false,
+}: { active: boolean; onClick: () => void; children: React.ReactNode; disabled?: boolean }) {
   return (
     <button
       onClick={onClick}
-      className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-        active
+      disabled={disabled}
+      className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+        active && !disabled
           ? 'act-bg act-tx'
           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
       }`}
@@ -237,9 +238,7 @@ export function SettingsPage() {
   }
 
   function handleBackendSave() {
-    const next: BackendSettings = backend.kind === 'cdu'
-      ? { kind: 'cdu', cdu: cduCfg }
-      : { kind: 'firebase' }
+    const next: BackendSettings = { kind: 'firebase' }
     saveBackendSettings(next)
     setBackend(next)
     setBackendSaved(true)
@@ -786,7 +785,8 @@ export function SettingsPage() {
                   </PillBtn>
                   <PillBtn
                     active={backend.kind === 'cdu'}
-                    onClick={() => setBackend({ ...backend, kind: 'cdu', cdu: cduCfg })}
+                    onClick={() => undefined}
+                    disabled
                   >
                     CDU (uskoro)
                   </PillBtn>

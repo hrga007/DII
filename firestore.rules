@@ -2,48 +2,67 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isAdmin() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     function isLoggedIn() {
       return request.auth != null;
     }
 
     // Users collection
     match /users/{userId} {
-      allow read, write: if isLoggedIn() && request.auth.uid == userId;
+      allow get: if isLoggedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    // Institutions — read/write za sve prijavljene
+    // Institutions — read za sve prijavljene, write samo admin
     match /institutions/{id} {
-      allow read, write: if isLoggedIn();
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
     }
 
-    // Import batches — čitanje za sve prijavljene, brisanje samo admin
+    // Import batches
     match /importBatches/{id} {
-      allow read, create, update: if isLoggedIn();
-      allow delete: if isLoggedIn() && request.auth.token.admin == true;
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
     }
 
-    // Import issues — read/create za sve prijavljene
+    // Import issues
     match /importIssues/{id} {
-      allow read, create: if isLoggedIn();
-      allow update, delete: if request.auth.token.admin == true;
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
     }
 
-    // Financial entries — read/create za sve prijavljene
+    // Financial entries
     match /financialEntries/{id} {
-      allow read, create: if isLoggedIn();
-      allow update, delete: if request.auth.token.admin == true;
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
     }
 
-    // Installed resources — read/create za sve prijavljene
+    // Installed resources
     match /installedResources/{id} {
-      allow read, create: if isLoggedIn();
-      allow update, delete: if request.auth.token.admin == true;
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
     }
 
-    // Audit logs — samo pisanje za prijavljene, čitanje samo admin
+    // Audit logs
     match /auditLogs/{id} {
+      allow read: if isAdmin();
       allow create: if isLoggedIn();
-      allow read: if request.auth.token.admin == true;
+      allow update, delete: if false;
+    }
+
+    // Share links — public direct get by token, no public listing
+    match /shareLinks/{id} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create: if isAdmin() && id == request.resource.data.token;
+      allow update: if request.resource.data.diff(resource.data)
+        .affectedKeys().hasOnly(['viewCount', 'lastViewedAt']);
+      allow delete: if isAdmin();
     }
   }
 }

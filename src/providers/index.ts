@@ -11,7 +11,7 @@
 
 import type { DataProvider } from './DataProvider'
 import { firebaseProvider } from './firebaseProvider'
-import { createCduRestProvider, type CduConfig } from './cduRestProvider'
+import type { CduConfig } from './cduRestProvider'
 
 export type BackendKind = 'firebase' | 'cdu'
 
@@ -48,13 +48,10 @@ export function clearBackendSettings(): void {
 
 /**
  * Vraća aktivni DataProvider prema spremljenim postavkama.
- * Default: Firebase (sigurna opcija dok god CDU nije spreman).
+ * Default: Firebase. CDU postavke ostaju spremljive kao priprema,
+ * ali dok REST provider nije implementiran ne smiju promijeniti runtime.
  */
 export function getProvider(): DataProvider {
-  const settings = loadBackendSettings()
-  if (settings.kind === 'cdu' && settings.cdu) {
-    return createCduRestProvider(settings.cdu)
-  }
   return firebaseProvider
 }
 

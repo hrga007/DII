@@ -704,7 +704,8 @@ function stripUndefinedDeep(value: unknown): unknown {
 }
 
 function shareToDoc(link: ShareLink): Record<string, unknown> {
-  const { id: _id, ...rest } = link
+  const rest = { ...link }
+  delete rest.id
   return stripUndefinedDeep({
     ...rest,
     createdAt: toTimestamp(link.createdAt),
@@ -772,16 +773,18 @@ function shareFromDoc(id: string, data: Record<string, unknown>): ShareLink {
 
 export async function createShareLink(link: ShareLink): Promise<string> {
   const db = getFirebaseDb()
-  const ref = await addDoc(collection(db, 'shareLinks'), shareToDoc(link))
-  return ref.id
+  const ref = doc(db, 'shareLinks', link.token)
+  const existing = await getDoc(ref)
+  if (existing.exists()) throw new Error('Share token already exists')
+  await setDoc(ref, shareToDoc(link))
+  return link.token
 }
 
 export async function getShareLinkByToken(token: string): Promise<ShareLink | null> {
   const db = getFirebaseDb()
-  const snap = await getDocs(query(collection(db, 'shareLinks'), where('token', '==', token), limit(1)))
-  if (snap.empty) return null
-  const d = snap.docs[0]
-  return shareFromDoc(d.id, d.data())
+  const snap = await getDoc(doc(db, 'shareLinks', token))
+  if (!snap.exists()) return null
+  return shareFromDoc(snap.id, snap.data())
 }
 
 export async function listShareLinks(): Promise<ShareLink[]> {

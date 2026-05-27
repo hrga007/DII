@@ -24,8 +24,12 @@ describe('validateRequiredField', () => {
 })
 
 describe('validateOIB', () => {
-  it('returns null for valid 11-digit OIB', () => {
-    expect(validateOIB('12345678901', ctx)).toBeNull()
+  it('returns null for valid ISO7064 OIB', () => {
+    expect(validateOIB('69435151530', ctx)).toBeNull()
+  })
+  it('returns warning for 11-digit OIB with invalid control digit', () => {
+    const issue = validateOIB('12345678901', ctx)
+    expect(issue?.severity).toBe('warning')
   })
   it('returns error for short OIB', () => {
     const issue = validateOIB('1234', ctx)
@@ -35,7 +39,7 @@ describe('validateOIB', () => {
     expect(validateOIB('1234567890X', ctx)).not.toBeNull()
   })
   it('strips whitespace before validating', () => {
-    expect(validateOIB(' 12345678901 ', ctx)).toBeNull()
+    expect(validateOIB(' 69435151530 ', ctx)).toBeNull()
   })
 })
 

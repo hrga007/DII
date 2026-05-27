@@ -6,7 +6,7 @@ Ovaj projekt je olakšana MVP web aplikacija za:
 
 - učitavanje Excel datoteka (`.xlsx`, po potrebi i `.xls`)
 - parsiranje i validaciju podataka iz jednog standardiziranog obrasca
-- spremanje originalne datoteke
+- spremanje batch metapodataka i obrađenih vrijednosti
 - spremanje obrađenih podataka u Google Firebase
 - pregled uvezenih batch-eva, grešaka i podataka kroz web sučelje
 
@@ -24,7 +24,7 @@ Aplikacija se u početnoj fazi hosta na **GitHub Pages**, a poseban backend serv
 - **Firebase Web SDK**
 - **Cloud Firestore**
 - **Firebase Authentication**
-- **Firebase Cloud Storage**
+- **Firebase Cloud Storage** samo ako se kasnije uključi pohrana originalnih datoteka
 - **SheetJS / xlsx** za parsiranje Excel datoteka u browseru
 
 ### Zašto ovaj stack
@@ -65,14 +65,14 @@ Ovo je zamjena za klasični backend u MVP-u. Mora raditi:
 - mapiranje u Firebase model
 - spremanje batch metapodataka
 - spremanje grešaka i upozorenja
-- spremanje originalne datoteke u Cloud Storage
+- spremanje batch metapodataka i obrađenih podataka
 - upis obrađenih podataka u Firestore
 
 ### 3.3. Firebase sloj
 
 - **Authentication** za prijavu korisnika
 - **Cloud Firestore** za podatke aplikacije
-- **Cloud Storage** za originalne uploadane Excel datoteke
+- **Cloud Storage** opcionalno za buduću pohranu originalnih Excel datoteka
 
 ---
 
@@ -141,12 +141,11 @@ Korisnik mora moći:
 
 Pri uploadu se radi:
 
-1. spremanje originalne datoteke u Cloud Storage
-2. parsiranje Excel datoteke u browseru
-3. validacija podataka
-4. upis batch zapisa u Firestore
-5. upis normaliziranih podataka u Firestore
-6. upis grešaka i upozorenja u Firestore
+1. parsiranje Excel datoteke u browseru
+2. validacija podataka
+3. upis batch zapisa u Firestore
+4. upis normaliziranih podataka u Firestore
+5. upis grešaka i upozorenja u Firestore
 
 ### 5.4. Validacija i obrada
 
@@ -219,7 +218,7 @@ Napomena: Firestore je dokumentna baza, pa se ovdje koristi dokumentni model umj
 - `processingStatus`
 - `warningCount`
 - `errorCount`
-- `storagePath`
+- `storagePath` (`null` u trenutnoj MVP varijanti)
 - `institutionId`
 - `templateVersion`
 - `importSummary`
@@ -287,10 +286,9 @@ Preporučeni redoslijed obrade:
 1. korisnik odabere datoteku
 2. aplikacija izračuna hash
 3. aplikacija provjeri postoji li isti hash
-4. datoteka se sprema u Storage
-5. Excel se parsira
-6. radi se validacija
-7. spremaju se `importBatch`, `importIssues`, `financialEntries`, `installedResources` i `auditLogs`
+4. Excel se parsira
+5. radi se validacija
+6. spremaju se `importBatch`, `importIssues`, `financialEntries`, `installedResources` i `auditLogs`
 
 ---
 
@@ -387,7 +385,7 @@ Napraviti osnovni login ekran.
 
 ### Korak 5
 
-Napraviti upload ekran i spremanje originalne Excel datoteke u Storage.
+Napraviti upload ekran, parsiranje Excel datoteke i spremanje obrađenih vrijednosti u Firestore.
 
 ### Korak 6
 
@@ -463,7 +461,7 @@ Ovo je **MVP / proof-of-concept arhitektura** za brzo testiranje:
 - hostanje: GitHub Pages
 - obrada: u browseru
 - baza: Firebase
-- datoteke: Firebase Storage
+- datoteke: originalni Excel se u ovoj MVP varijanti ne sprema; Storage ostaje opcionalan
 
 Kasnije, ako projekt preraste MVP, preporučeni smjer je:
 

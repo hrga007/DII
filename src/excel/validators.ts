@@ -1,4 +1,5 @@
 import type { ImportIssue } from '../models/financialEntry'
+import { validateOib } from '../utils/oibValidator'
 
 export interface ValidationContext {
   batchId: string
@@ -44,6 +45,18 @@ export function validateOIB(
       rowLabel: 'Opći podaci',
       fieldName: 'OIB',
       message: `OIB "${oib}" nije ispravan (mora imati 11 znamenki)`,
+      originalValue: oib,
+      createdAt: new Date(),
+    }
+  }
+  if (!validateOib(clean)) {
+    return {
+      batchId: ctx.batchId,
+      severity: 'warning',
+      sheetName: ctx.sheetName,
+      rowLabel: 'Opći podaci',
+      fieldName: 'OIB',
+      message: `OIB "${oib}" ima 11 znamenki, ali kontrolna znamenka ne odgovara ISO7064 provjeri`,
       originalValue: oib,
       createdAt: new Date(),
     }
