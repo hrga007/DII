@@ -12,11 +12,12 @@ import {
   type BackendSettings, type CduConfig,
 } from '../providers'
 import {
-  listUsers, createUser, updateRole, removeUser,
+  listUsers, createUser, updateRole, removeUser, sendUserPasswordReset,
   type UserProfile, type Role,
 } from '../services/userService'
 import { ShareLinksAdmin } from '../components/ShareLinksAdmin'
 import { getProvider } from '../providers'
+import { currentUser } from '../services/authService'
 
 const FB_FIELDS: { key: keyof FirebaseConfig; label: string; placeholder: string }[] = [
   { key: 'apiKey',            label: 'API Key',             placeholder: 'AIzaSy...' },
@@ -160,6 +161,10 @@ export function SettingsPage() {
   const [updatingUid, setUpdatingUid] = useState<string | null>(null)
   const [confirmRemoveUid, setConfirmRemoveUid] = useState<string | null>(null)
   const [removingUid, setRemovingUid] = useState<string | null>(null)
+  const [confirmPasswordResetUid, setConfirmPasswordResetUid] = useState<string | null>(null)
+  const [resettingPasswordUid, setResettingPasswordUid] = useState<string | null>(null)
+  const [passwordResetNotice, setPasswordResetNotice] = useState('')
+  const [passwordResetError, setPasswordResetError] = useState('')
   const [userSearch, setUserSearch] = useState('')
 
   async function loadUsers() {
@@ -204,6 +209,32 @@ export function SettingsPage() {
       setUsers(prev => prev.filter(u => u.uid !== uid))
     } finally {
       setRemovingUid(null)
+    }
+  }
+
+  async function handleSendPasswordReset(user: UserProfile) {
+    setResettingPasswordUid(user.uid)
+    setConfirmPasswordResetUid(null)
+    setPasswordResetNotice('')
+    setPasswordResetError('')
+    try {
+      await sendUserPasswordReset(user.email)
+      await getProvider().addAuditLog({
+        userId: currentUser()?.uid ?? 'unknown',
+        action: 'password_reset_email',
+        entityType: 'user',
+        entityId: user.uid,
+        timestamp: new Date(),
+        details: {
+          targetEmail: user.email,
+          delivery: 'firebase_auth_email',
+        },
+      })
+      setPasswordResetNotice(`E-mail za obnovu lozinke poslan je korisniku ${user.email}.`)
+    } catch (err) {
+      setPasswordResetError(String(err).replace('FirebaseError: ', ''))
+    } finally {
+      setResettingPasswordUid(null)
     }
   }
 
@@ -259,6 +290,7 @@ export function SettingsPage() {
   }, [tab, usersLoaded])
 
   const fbOk = fbStatus === 'ok'
+  const signedInUid = currentUser()?.uid
 
   return (
     <div>
@@ -308,7 +340,7 @@ export function SettingsPage() {
                     {users.length > 0 && <span className="ml-1.5 text-xs font-normal opacity-60">({users.length})</span>}
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>
-                    Pregled korisnika i dodjela uloga
+                    Pregled korisnika, dodjela uloga i slanje Firebase e-maila za obnovu lozinke
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -332,6 +364,17 @@ export function SettingsPage() {
                 </div>
               </div>
 
+              {passwordResetNotice && (
+                <div className="mx-5 mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {passwordResetNotice}
+                </div>
+              )}
+              {passwordResetError && (
+                <div className="mx-5 mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {passwordResetError}
+                </div>
+              )}
+
               {!isInitialized() ? (
                 <div className="p-6 text-center text-sm text-gray-400">
                   Firebase nije spojen. Konfiguriraj vezu na tabu Povezivanje.
@@ -354,6 +397,9 @@ export function SettingsPage() {
                     const isRemoving = removingUid === u.uid
                     const isConfirm  = confirmRemoveUid === u.uid
                     const isUpdating = updatingUid === u.uid
+                    const isPasswordResetting = resettingPasswordUid === u.uid
+                    const isPasswordResetConfirm = confirmPasswordResetUid === u.uid
+                    const canResetPassword = u.uid !== signedInUid
                     return (
                       <div key={u.uid} className="flex items-center gap-4 px-5 py-3">
                         <div
@@ -391,6 +437,38 @@ export function SettingsPage() {
                               ))}
                             </div>
                           )}
+                          {isPasswordResetting ? (
+                            <span className="animate-spin h-4 w-4 border-2 border-amber-400 border-t-transparent rounded-full" />
+                          ) : isPasswordResetConfirm ? (
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleSendPasswordReset(u)}
+                                className="text-xs px-2.5 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors font-medium"
+                                title="Firebase će korisniku poslati e-mail s linkom za postavljanje nove lozinke."
+                              >
+                                Pošalji
+                              </button>
+                              <button
+                                onClick={() => setConfirmPasswordResetUid(null)}
+                                className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                              >
+                                Ne
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => canResetPassword && setConfirmPasswordResetUid(u.uid)}
+                              disabled={!canResetPassword}
+                              className="text-xs px-3 py-1.5 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={
+                                canResetPassword
+                                  ? 'Šalje korisniku Firebase e-mail za obnovu lozinke. Admin ne vidi novu lozinku.'
+                                  : 'Za vlastiti račun koristi Firebase obnovu lozinke na ekranu prijave.'
+                              }
+                            >
+                              Obnovi lozinku
+                            </button>
+                          )}
                           {isRemoving ? (
                             <span className="animate-spin h-4 w-4 border-2 border-red-400 border-t-transparent rounded-full" />
                           ) : isConfirm ? (
@@ -426,7 +504,7 @@ export function SettingsPage() {
 
               {usersLoaded && (
                 <div className="px-5 py-3 border-t border-gray-50 bg-gray-50 text-xs text-gray-400">
-                  Brisanje uklanja Firestore zapis. Korisnik ostaje u Firebase Auth — za potpuno brisanje koristi Firebase konzolu.
+                  Obnova lozinke šalje Firebase e-mail korisniku; admin ne vidi i ne postavlja lozinku. Brisanje uklanja Firestore zapis. Korisnik ostaje u Firebase Auth — za potpuno brisanje koristi Firebase konzolu.
                 </div>
               )}
             </div>

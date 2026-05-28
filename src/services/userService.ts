@@ -1,5 +1,5 @@
 import { initializeApp, deleteApp } from 'firebase/app'
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth'
+import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
 import {
   collection, getDocs, doc, setDoc, updateDoc, deleteDoc, serverTimestamp,
 } from 'firebase/firestore'
@@ -57,4 +57,18 @@ export async function updateRole(uid: string, role: Role): Promise<void> {
 export async function removeUser(uid: string): Promise<void> {
   const db = getFirebaseDb()
   await deleteDoc(doc(db, 'users', uid))
+}
+
+export async function sendUserPasswordReset(email: string): Promise<void> {
+  const config = getBuildConfig() ?? loadConfig()
+  if (!config) throw new Error('Firebase nije konfiguriran')
+
+  const tempApp = initializeApp(config, `temp-reset-${Date.now()}`)
+  const tempAuth = getAuth(tempApp)
+
+  try {
+    await sendPasswordResetEmail(tempAuth, email)
+  } finally {
+    await deleteApp(tempApp)
+  }
 }

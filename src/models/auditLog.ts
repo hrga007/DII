@@ -13,6 +13,7 @@ export type AuditAction =
   | 'reupload'
   | 'data_quality_check'
   | 'data_quality_repair'
+  | 'password_reset_email'
 
 export interface AuditLog {
   id?: string
