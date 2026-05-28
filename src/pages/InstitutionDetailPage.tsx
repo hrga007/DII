@@ -30,6 +30,8 @@ const ACTIVITY_LABELS: Record<AuditAction, string> = {
   link_institution: 'Povezivanje institucije',
   bulk_normalize:   'Skupna normalizacija',
   reupload:         'Ponovna dostava',
+  data_quality_check:  'Provjera podataka',
+  data_quality_repair: 'Popravak podataka',
 }
 
 function relTimeShort(date: Date): string {
