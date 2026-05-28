@@ -11,6 +11,8 @@ export type AuditAction =
   | 'link_institution'
   | 'bulk_normalize'
   | 'reupload'
+  | 'data_quality_check'
+  | 'data_quality_repair'
 
 export interface AuditLog {
   id?: string

@@ -4,6 +4,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { getProvider } from '../providers'
 import type { AuditLog, AuditAction } from '../models/auditLog'
 import { exportAuditToExcel } from '../utils/exportUtils'
+import { DataQualityPanel } from '../components/DataQualityPanel'
 
 const ACTION_LABELS: Record<AuditAction, string> = {
   login: 'Prijava',
@@ -18,9 +19,12 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   link_institution: 'Povezivanje institucije',
   bulk_normalize: 'Masovna normalizacija',
   reupload: 'Ponovni upload',
+  data_quality_check: 'Provjera podataka',
+  data_quality_repair: 'Popravak podataka',
 }
 
 const PAGE_SIZE = 20
+type AuditTab = 'logs' | 'dataQuality'
 
 export function filterAuditLogs(
   logs: AuditLog[],
@@ -59,6 +63,7 @@ export function AuditPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [page, setPage] = useState(0)
+  const [activeTab, setActiveTab] = useState<AuditTab>('logs')
 
   const { data: logs = [], isLoading } = useQuery<AuditLog[]>({
     queryKey: ['auditLogs'],
@@ -86,12 +91,12 @@ export function AuditPage() {
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
-        <h1 className="text-xl font-bold text-gray-800">Audit log</h1>
+        <h1 className="text-xl font-bold text-gray-800">Audit</h1>
         <div className="flex items-center gap-3">
-          {!isLoading && (
+          {activeTab === 'logs' && !isLoading && (
             <span className="text-sm text-gray-500">{filtered.length} zapisa</span>
           )}
-          {filtered.length > 0 && (
+          {activeTab === 'logs' && filtered.length > 0 && (
             <button
               onClick={() => exportAuditToExcel(filtered, `audit-log-${new Date().toISOString().slice(0, 10)}.xlsx`)}
               className="text-sm px-4 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-1.5"
@@ -102,6 +107,33 @@ export function AuditPage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-2 mb-5">
+        <button
+          type="button"
+          onClick={() => setActiveTab('logs')}
+          className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+            activeTab === 'logs'
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          Audit log
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('dataQuality')}
+          className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+            activeTab === 'dataQuality'
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          Provjera podataka
+        </button>
+      </div>
+
+      {activeTab === 'logs' ? (
+        <>
       {/* Filters */}
       <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-5">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -257,6 +289,10 @@ export function AuditPage() {
             </div>
           )}
         </>
+      )}
+        </>
+      ) : (
+        <DataQualityPanel />
       )}
     </div>
   )
