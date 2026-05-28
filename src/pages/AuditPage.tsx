@@ -21,6 +21,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   reupload: 'Ponovni upload',
   data_quality_check: 'Provjera podataka',
   data_quality_repair: 'Popravak podataka',
+  password_reset_email: 'Obnova lozinke',
 }
 
 const PAGE_SIZE = 20

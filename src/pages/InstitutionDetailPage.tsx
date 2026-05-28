@@ -32,6 +32,7 @@ const ACTIVITY_LABELS: Record<AuditAction, string> = {
   reupload:         'Ponovna dostava',
   data_quality_check:  'Provjera podataka',
   data_quality_repair: 'Popravak podataka',
+  password_reset_email: 'Obnova lozinke',
 }
 
 function relTimeShort(date: Date): string {
