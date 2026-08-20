@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filterAuditLogs } from './AuditPage'
+import { auditDetailSummary, filterAuditLogs } from './AuditPage'
 import type { AuditLog } from '../models/auditLog'
 
 function makeLog(action: AuditLog['action'], timestamp: Date): AuditLog {
@@ -57,5 +57,19 @@ describe('filterAuditLogs', () => {
 
   it('returns empty when nothing matches', () => {
     expect(filterAuditLogs(logs, 'reupload', '', '')).toHaveLength(0)
+  })
+})
+
+describe('auditDetailSummary', () => {
+  it('prikazuje promjenu OIB-a i izvedene službene vrste tijela', () => {
+    expect(auditDetailSummary({
+      field: 'OIB',
+      oldOib: '11111111111',
+      newOib: '22222222222',
+      oldClassification: { pravniStatus: 'Državna tijela' },
+      newClassification: { pravniStatus: 'Trgovačka društva' },
+    })).toBe(
+      'OIB: 11111111111 → 22222222222 · Vrsta: Državna tijela → Trgovačka društva',
+    )
   })
 })

@@ -1,5 +1,6 @@
-import { useState, type FormEvent, useEffect } from 'react'
+import { useState, type FormEvent, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   saveConfig, loadConfig, clearConfig, initFirebase,
   isInitialized, getBuildConfig, type FirebaseConfig,
@@ -18,6 +19,8 @@ import {
 import { ShareLinksAdmin } from '../components/ShareLinksAdmin'
 import { getProvider } from '../providers'
 import { currentUser } from '../services/authService'
+import { getRegistry, REGISTRY_SOURCE_URL } from '../utils/registryLoader'
+import { classifyInstitution } from '../utils/reportFilters'
 
 const FB_FIELDS: { key: keyof FirebaseConfig; label: string; placeholder: string }[] = [
   { key: 'apiKey',            label: 'API Key',             placeholder: 'AIzaSy...' },
@@ -42,6 +45,14 @@ const EMPTY_CDU: CduConfig = {
   nifiEndpoint: '',
   catalogUrl: '',
   authMethod: 'jwt-local',
+}
+
+function formatRegistryTimestamp(value: string | null): string {
+  if (!value) return 'Nije navedena'
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2}))?$/.exec(value)
+  if (!match) return value
+  const [, year, month, day, hour, minute, second] = match
+  return `${day}.${month}.${year}.${hour ? ` ${hour}:${minute}:${second}` : ''}`
 }
 
 // ── Shared helpers ────────────────────────────────────────────────
@@ -125,6 +136,7 @@ const TABS: { key: SettingsTab; label: string }[] = [
 // ─────────────────────────────────────────────────────────────────
 export function SettingsPage() {
   const navigate       = useNavigate()
+  const queryClient    = useQueryClient()
   const hasBuildConfig = getBuildConfig() !== null
   const initialized    = isInitialized()
 
@@ -147,6 +159,31 @@ export function SettingsPage() {
   const [reapplyResult, setReapplyResult] = useState<{ updated: number; skipped: number } | null>(null)
   const [syncNamesStatus, setSyncNamesStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
   const [syncNamesResult, setSyncNamesResult] = useState<{ updated: number; skipped: number; notFound: number } | null>(null)
+
+  const {
+    data: officialRegistry,
+    isLoading: registryLoading,
+    isError: registryError,
+  } = useQuery({
+    queryKey: ['registry'],
+    queryFn: getRegistry,
+    staleTime: Infinity,
+  })
+  const {
+    data: appInstitutions = [],
+    isLoading: institutionsLoading,
+    isError: institutionsError,
+  } = useQuery({
+    queryKey: ['institutions'],
+    queryFn: () => getProvider().getInstitutions(),
+    enabled: initialized,
+  })
+  const unmatchedInstitutions = useMemo(() => {
+    if (!officialRegistry) return []
+    return appInstitutions.filter(institution => (
+      !classifyInstitution(institution, officialRegistry.byOib).registryMatched
+    ))
+  }, [appInstitutions, officialRegistry])
 
   // Korisnici state
   const [users, setUsers] = useState<UserProfile[]>([])
@@ -290,7 +327,7 @@ export function SettingsPage() {
   }, [tab, usersLoaded])
 
   const fbOk = fbStatus === 'ok'
-  const signedInUid = currentUser()?.uid
+  const signedInUid = initialized ? currentUser()?.uid : undefined
 
   return (
     <div>
@@ -1028,6 +1065,92 @@ export function SettingsPage() {
               </div>
             </div>
 
+            <div className="bg-white rounded-2xl border border-gray-200 p-5">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Službeni Popis tijela javne vlasti</p>
+                  <p className="text-xs text-gray-400 mt-1 leading-relaxed">
+                    Ugrađena kopija službenog izvora Povjerenika za informiranje iz koje se po OIB-u izvode
+                    vrsta tijela, djelatnost i osnivač.
+                  </p>
+                </div>
+                <a
+                  href={REGISTRY_SOURCE_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-blue-700 hover:underline whitespace-nowrap"
+                >
+                  Otvori izvor ↗
+                </a>
+              </div>
+
+              {registryLoading ? (
+                <div className="flex items-center gap-2 py-3 text-sm text-gray-400">
+                  <span className="animate-spin h-4 w-4 border-2 spin-primary rounded-full" />
+                  Učitavanje registra…
+                </div>
+              ) : registryError || !officialRegistry ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  Ugrađenu kopiju registra nije moguće učitati. Klasifikacijski filtri zato nisu dostupni.
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                      <p className="text-gray-400 mb-0.5">Zapisa u registru</p>
+                      <p className="font-semibold text-gray-700">
+                        {officialRegistry.entries.length.toLocaleString('hr-HR')}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                      <p className="text-gray-400 mb-0.5">Najnovija izmjena u izvoru</p>
+                      <p className="font-semibold text-gray-700">
+                        {formatRegistryTimestamp(officialRegistry.registryUpdatedAt)}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                      <p className="text-gray-400 mb-0.5">Institucije aplikacije bez OIB podudaranja</p>
+                      <p className={`font-semibold ${
+                        !initialized || institutionsLoading || institutionsError
+                          ? 'text-gray-500'
+                          : unmatchedInstitutions.length > 0
+                            ? 'text-amber-700'
+                            : 'text-emerald-700'
+                      }`}>
+                        {!initialized
+                          ? 'Firebase nije spojen'
+                          : institutionsLoading
+                            ? 'Provjera…'
+                            : institutionsError
+                              ? 'Provjera nije uspjela'
+                              : `${unmatchedInstitutions.length} od ${appInstitutions.length}`}
+                      </p>
+                    </div>
+                  </div>
+
+                  {initialized && !institutionsLoading && !institutionsError && unmatchedInstitutions.length > 0 && (
+                    <details className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+                      <summary className="cursor-pointer font-semibold">
+                        Prikaži institucije bez podudaranja ({unmatchedInstitutions.length})
+                      </summary>
+                      <ul className="mt-2 space-y-1 pl-4 list-disc">
+                        {unmatchedInstitutions.map(institution => (
+                          <li key={institution.id ?? `${institution.name}-${institution.oib}`}>
+                            {institution.name} · OIB: {institution.oib?.trim() || 'nije upisan'}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </>
+              )}
+
+              <p className="mt-4 border-t border-gray-100 pt-3 text-xs leading-relaxed text-gray-500">
+                <strong>DII popis dostave</strong> zaseban je operativni popis institucija kojima se dostavlja obrazac.
+                Ne koristi se za klasifikaciju; službene kategorije uvijek dolaze iz Popisa tijela javne vlasti.
+              </p>
+            </div>
+
             {/* Migracija: retroaktivni ispravci OIB-a i naziva */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5">
               <p className="text-sm font-semibold text-gray-700 mb-1">Retroaktivna primjena ispravaka</p>
@@ -1038,12 +1161,28 @@ export function SettingsPage() {
               </p>
               <div className="flex items-center gap-3 flex-wrap">
                 <button
-                  disabled={reapplyStatus === 'running'}
+                  disabled={!initialized || reapplyStatus === 'running'}
                   onClick={async () => {
                     setReapplyStatus('running')
                     setReapplyResult(null)
                     try {
                       const result = await getProvider().reapplyResolvedIssues()
+                      await queryClient.invalidateQueries({ queryKey: ['institutions'] })
+                      const user = currentUser()
+                      if (user) {
+                        try {
+                          await getProvider().addAuditLog({
+                            userId: user.uid,
+                            action: 'data_quality_repair',
+                            entityType: 'institutions',
+                            entityId: 'bulk',
+                            timestamp: new Date(),
+                            details: { operation: 'reapply_resolved_issues', ...result },
+                          })
+                        } catch {
+                          // Popravak je završen; nedostupan audit ne poništava rezultat.
+                        }
+                      }
                       setReapplyResult(result)
                       setReapplyStatus('done')
                     } catch {
@@ -1065,21 +1204,37 @@ export function SettingsPage() {
               </div>
             </div>
 
-            {/* Sinkronizacija naziva iz DII registra */}
+            {/* Sinkronizacija naziva iz službenog Popisa tijela javne vlasti */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5">
-              <p className="text-sm font-semibold text-gray-700 mb-1">Sinkronizacija naziva iz registra</p>
+              <p className="text-sm font-semibold text-gray-700 mb-1">Sinkronizacija naziva iz Popisa tijela javne vlasti</p>
               <p className="text-xs text-gray-400 mb-4 leading-relaxed">
-                Za svaku instituciju koja ima OIB, pronalazi odgovarajući unos u pouzdanom DII registru
-                (150 tijela) i ispravlja naziv institucije ako se razlikuje. Naziv u registru je mjerodavan.
+                Za svaku instituciju koja ima OIB pronalazi odgovarajući unos u službenom Popisu tijela javne vlasti
+                Povjerenika za informiranje i usklađuje naziv institucije. Klasifikacija se uvijek izvodi po OIB-u i ne sprema se u Firebase.
               </p>
               <div className="flex items-center gap-3 flex-wrap">
                 <button
-                  disabled={syncNamesStatus === 'running'}
+                  disabled={!initialized || syncNamesStatus === 'running'}
                   onClick={async () => {
                     setSyncNamesStatus('running')
                     setSyncNamesResult(null)
                     try {
                       const result = await getProvider().syncNamesFromRegistry()
+                      await queryClient.invalidateQueries({ queryKey: ['institutions'] })
+                      const user = currentUser()
+                      if (user) {
+                        try {
+                          await getProvider().addAuditLog({
+                            userId: user.uid,
+                            action: 'data_quality_repair',
+                            entityType: 'institutions',
+                            entityId: 'bulk',
+                            timestamp: new Date(),
+                            details: { operation: 'sync_names_from_official_registry', ...result },
+                          })
+                        } catch {
+                          // Sinkronizacija je završena; nedostupan audit ne poništava rezultat.
+                        }
+                      }
                       setSyncNamesResult(result)
                       setSyncNamesStatus('done')
                     } catch {
@@ -1088,7 +1243,7 @@ export function SettingsPage() {
                   }}
                   className="text-sm px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
-                  {syncNamesStatus === 'running' ? 'Sinkronizacija…' : 'Sinkroniziraj nazive iz registra'}
+                  {syncNamesStatus === 'running' ? 'Sinkronizacija…' : 'Sinkroniziraj nazive iz službenog popisa'}
                 </button>
                 {syncNamesStatus === 'done' && syncNamesResult && (
                   <span className="text-sm text-emerald-700 font-medium">

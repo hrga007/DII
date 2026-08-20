@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getProvider } from '../providers'
 import { runImport } from '../services/importService'
@@ -13,8 +13,9 @@ import { StatusBadge, ActiveBadge, SeverityBadge } from '../components/StatusBad
 import { exportToExcel, exportToCsv } from '../utils/exportUtils'
 import { getAppSettings } from '../hooks/useAppSettings'
 import { validateOib, formatOibError } from '../utils/oibValidator'
-import { RegistryLinkModal } from '../components/RegistryLinkModal'
-import { findCandidates } from '../utils/registryMatcher'
+import { RegistryClassificationMeta } from '../components/RegistryClassificationFilters'
+import { getRegistry, REGISTRY_SOURCE_URL, type RegistryData } from '../utils/registryLoader'
+import { classifyInstitution } from '../utils/reportFilters'
 
 type Tab = 'financije' | 'resursi' | 'issues'
 
@@ -39,10 +40,11 @@ function formatEur(v: number | null): string {
 // ─── Panel: Poveži instituciju ────────────────────────────────────
 interface LinkPanelProps {
   batchId: string
-  onLinked: () => void
+  onLinked: () => void | Promise<void>
 }
 
 function LinkInstitutionPanel({ batchId, onLinked }: LinkPanelProps) {
+  const queryClient = useQueryClient()
   const [institutions, setInstitutions] = useState<Institution[]>([])
   const [selected, setSelected] = useState('')
   const [saving, setSaving] = useState(false)
@@ -70,7 +72,12 @@ function LinkInstitutionPanel({ batchId, onLinked }: LinkPanelProps) {
         timestamp: new Date(),
         details: { institutionId: selected },
       })
-      onLinked()
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['batches'] }),
+        queryClient.invalidateQueries({ queryKey: ['institutions'] }),
+        queryClient.invalidateQueries({ queryKey: ['allFinancialEntries'] }),
+      ])
+      await onLinked()
     } finally {
       setSaving(false)
     }
@@ -179,11 +186,13 @@ function NormalizeModal({ batchId, warningCount, onClose, onDone }: NormalizeMod
 // ─── Modal: Tip A ispravak (OIB, naziv, kontakt) ──────────────────
 interface TipAModalProps {
   issue: ImportIssue
+  institution: Institution | null
+  registry?: RegistryData
   onClose: () => void
   onSaved: () => void
 }
 
-function TipAModal({ issue, onClose, onSaved }: TipAModalProps) {
+function TipAModal({ issue, institution, registry, onClose, onSaved }: TipAModalProps) {
   const queryClient = useQueryClient()
   const [value, setValue] = useState(issue.correctedValue ?? issue.originalValue ?? '')
   const [note, setNote] = useState('')
@@ -211,17 +220,42 @@ function TipAModal({ issue, onClose, onSaved }: TipAModalProps) {
     try {
       const user = currentUser()
       if (!user) return
-      await getProvider().resolveIssue(issue.id, user.uid, 'MANUAL_EDIT', value.trim(), note.trim() || undefined, { batchId: issue.batchId, severity: issue.severity, fieldName: issue.fieldName })
-      await getProvider().addAuditLog({
-        userId: user.uid,
-        action: 'manual_correction',
-        entityType: 'importIssue',
-        entityId: issue.id,
-        timestamp: new Date(),
-        details: { field: issue.fieldName, correctedValue: value.trim() },
-      })
+      const correctedValue = value.trim()
+      const isOibCorrection = issue.fieldName?.toLocaleLowerCase('hr') === 'oib'
+      let auditRegistry = registry
+      if (isOibCorrection && institution && !auditRegistry) {
+        try {
+          auditRegistry = await getRegistry()
+        } catch {
+          // Ispravak ostaje moguć i kada statički službeni registar nije dostupan.
+        }
+      }
+      const classificationChange = isOibCorrection && institution && auditRegistry ? {
+        oldOib: institution.oib,
+        newOib: correctedValue,
+        oldClassification: classifyInstitution(institution, auditRegistry.byOib),
+        newClassification: classifyInstitution({ ...institution, oib: correctedValue }, auditRegistry.byOib),
+      } : {}
+
+      await getProvider().resolveIssue(issue.id, user.uid, 'MANUAL_EDIT', correctedValue, note.trim() || undefined, { batchId: issue.batchId, severity: issue.severity, fieldName: issue.fieldName })
+      try {
+        await getProvider().addAuditLog({
+          userId: user.uid,
+          action: 'manual_correction',
+          entityType: 'importIssue',
+          entityId: issue.id,
+          timestamp: new Date(),
+          details: { field: issue.fieldName, correctedValue, ...classificationChange },
+        })
+      } catch {
+        // Ispravak je već spremljen; nedostupan audit ne smije zadržati zastarjeli UI.
+      }
       if (issue.fieldName?.toLowerCase() === 'oib') {
-        queryClient.invalidateQueries({ queryKey: ['institutions'] })
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['institutions'] }),
+          queryClient.invalidateQueries({ queryKey: ['allFinancialEntries'] }),
+          queryClient.invalidateQueries({ queryKey: ['batches'] }),
+        ])
       }
       onSaved()
     } catch (err) {
@@ -402,6 +436,7 @@ export function ImportDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
+  const queryClient = useQueryClient()
   const navState = location.state as { from?: string; institutionId?: string } | null
   const [batch, setBatch] = useState<ImportBatch | null>(null)
   const [institution, setInstitution] = useState<Institution | null>(null)
@@ -417,7 +452,12 @@ export function ImportDetailPage() {
   const [activating, setActivating] = useState(false)
   const [showNormalize, setShowNormalize] = useState(false)
   const [tipAIssue, setTipAIssue] = useState<ImportIssue | null>(null)
-  const [showRegistryModal, setShowRegistryModal] = useState(false)
+
+  const { data: registry, isLoading: registryLoading, isError: registryError } = useQuery({
+    queryKey: ['registry'],
+    queryFn: getRegistry,
+    staleTime: Infinity,
+  })
 
   const reload = useCallback(async () => {
     if (!id) return
@@ -428,6 +468,8 @@ export function ImportDetailPage() {
     if (b?.institutionId) {
       const inst = await getProvider().getInstitutionById(b.institutionId)
       setInstitution(inst)
+    } else {
+      setInstitution(null)
     }
   }, [id])
 
@@ -449,6 +491,12 @@ export function ImportDetailPage() {
     setDeleteStep('deleting')
     try {
       await getProvider().deleteBatch(id)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['batches'] }),
+        queryClient.invalidateQueries({ queryKey: ['institutions'] }),
+        queryClient.invalidateQueries({ queryKey: ['allFinancialEntries'] }),
+        queryClient.invalidateQueries({ queryKey: ['issues'] }),
+      ])
       navigate('/upload?tab=batches', { replace: true })
     } catch {
       setDeleteStep('idle')
@@ -472,6 +520,11 @@ export function ImportDetailPage() {
         })
       }
       await reload()
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['batches'] }),
+        queryClient.invalidateQueries({ queryKey: ['institutions'] }),
+        queryClient.invalidateQueries({ queryKey: ['allFinancialEntries'] }),
+      ])
     } finally {
       setActivating(false)
     }
@@ -484,6 +537,9 @@ export function ImportDetailPage() {
   const unresolvedWarnings = issues.filter(i => i.severity === 'warning' && !i.resolvedAt)
   const unresolvedIssues = issues.filter(i => !i.resolvedAt)
   const unresolvedCount = unresolvedErrors.length + unresolvedWarnings.length
+  const classification = institution && registry
+    ? classifyInstitution(institution, registry.byOib)
+    : undefined
 
   const TABS: { key: Tab; label: string; count: number }[] = [
     { key: 'financije', label: 'Financije',  count: entries.length },
@@ -512,46 +568,6 @@ export function ImportDetailPage() {
         <LinkInstitutionPanel batchId={id!} onLinked={reload} />
       )}
 
-      {/* ── Banner: Uparivanje s registrom dostave ── */}
-      {institution && institution.registryIndex == null && (() => {
-        const instName = institution.name || batch.importSummary?.institutionName || ''
-        const topCandidate = findCandidates(instName, 1)[0]
-        return (
-          <div className="mb-4 flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3">
-            <span className="text-lg shrink-0 mt-0.5">🔗</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-blue-800">
-                Institucija nije uparena s registrom dostave
-              </p>
-              {topCandidate && topCandidate.score >= 0.4 && (
-                <p className="text-xs text-blue-600 mt-0.5">
-                  Moguće podudaranje: <span className="font-medium">{topCandidate.entry.name}</span>
-                </p>
-              )}
-            </div>
-            <button
-              onClick={() => setShowRegistryModal(true)}
-              className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium"
-            >
-              Upari
-            </button>
-          </div>
-        )
-      })()}
-
-      {/* ── Modal: Registar uparivanje ── */}
-      {showRegistryModal && institution && (
-        <RegistryLinkModal
-          institutionName={institution.name || batch.importSummary?.institutionName || ''}
-          currentRegistryIndex={institution.registryIndex}
-          onConfirm={async (idx) => {
-            await getProvider().updateInstitutionRegistryIndex(institution.id!, idx)
-            setInstitution(prev => prev ? { ...prev, registryIndex: idx } : prev)
-          }}
-          onClose={() => setShowRegistryModal(false)}
-        />
-      )}
-
       {/* ── Header kartica ── */}
       <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 mb-4">
         <div className="flex items-start justify-between gap-3 mb-2">
@@ -566,6 +582,50 @@ export function ImportDetailPage() {
             <StatusBadge status={batch.processingStatus} />
           </div>
         </div>
+
+        {batch.institutionId && (
+          <div className={`mb-3 rounded-xl border px-3 py-2.5 ${
+            registryError
+              ? 'border-amber-200 bg-amber-50'
+              : classification?.registryMatched
+              ? 'border-emerald-100 bg-emerald-50/60'
+              : registryLoading
+                ? 'border-gray-100 bg-gray-50'
+                : 'border-amber-200 bg-amber-50'
+          }`}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Službena klasifikacija institucije</p>
+                {registryError ? (
+                  <p className="mt-1 text-xs font-medium text-amber-800">
+                    Službeni registar trenutačno nije moguće učitati; klasifikacija se zato ne prikazuje.
+                  </p>
+                ) : classification ? (
+                  <RegistryClassificationMeta classification={classification} className="mt-1 max-w-none text-xs" />
+                ) : registryLoading ? (
+                  <p className="mt-1 text-xs text-gray-500">Učitavanje Popisa tijela javne vlasti…</p>
+                ) : (
+                  <p className="mt-1 text-xs font-medium text-amber-800">
+                    Nekategorizirano — povezana institucija nema OIB koji odgovara službenom popisu.
+                  </p>
+                )}
+                {!registryError && classification && !classification.registryMatched && (
+                  <p className="mt-1 text-xs font-medium text-amber-800">
+                    Nekategorizirano — provjerite OIB na detaljima institucije.
+                  </p>
+                )}
+              </div>
+              <a
+                href={REGISTRY_SOURCE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="shrink-0 text-[11px] font-medium text-blue-600 hover:underline"
+              >
+                Službeni izvor ↗
+              </a>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm">
           <span className={unresolvedErrors.length > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}>
@@ -639,7 +699,15 @@ export function ImportDetailPage() {
       {batch.institutionId && (
         <ReuploadZone
           batch={batch}
-          onImported={(newId) => navigate(`/imports/${newId}`)}
+          onImported={async (newId) => {
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: ['batches'] }),
+              queryClient.invalidateQueries({ queryKey: ['institutions'] }),
+              queryClient.invalidateQueries({ queryKey: ['allFinancialEntries'] }),
+              queryClient.invalidateQueries({ queryKey: ['issues'] }),
+            ])
+            navigate(`/imports/${newId}`)
+          }}
         />
       )}
 
@@ -975,6 +1043,8 @@ export function ImportDetailPage() {
       {tipAIssue && (
         <TipAModal
           issue={tipAIssue}
+          institution={institution}
+          registry={registry}
           onClose={() => setTipAIssue(null)}
           onSaved={async () => {
             setTipAIssue(null)

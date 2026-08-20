@@ -74,6 +74,41 @@ Ovo je zamjena za klasični backend u MVP-u. Mora raditi:
 - **Cloud Firestore** za podatke aplikacije
 - **Cloud Storage** opcionalno za buduću pohranu originalnih Excel datoteka
 
+### 3.4. Službeni Popis tijela javne vlasti
+
+Klasifikacije institucija preuzimaju se isključivo iz službenog
+[Popisa tijela javne vlasti Povjerenika za informiranje](https://tjv.pristupinfo.hr/?download=).
+U aplikaciji se koristi verzionirana, statička kopija `public/registar-tijela.json`, primjerena
+hostanju na GitHub Pages.
+
+- povezivanje institucije s registrom radi deterministički po OIB-u, bez fuzzy uparivanja
+- iz službenog izvora koriste se `Pravni status`, `Djelatnost` i `Osnivač`
+- službene kategorije se ne prepravljaju lokalnim pravilima; to uključuje kategoriju
+  `Trgovačka društva` za d.o.o. i d.d. kada je tako navedeno u izvoru
+- klasifikacija se izvodi pri čitanju i **ne duplicira se u Firestore dokumentima institucija**
+- DII popis dostave ostaje zaseban operativni popis primatelja obrasca i nije izvor klasifikacije
+- institucija bez OIB-a ili bez podudaranja u službenom izvoru prikazuje se kao `Nekategorizirano`
+
+Osvježavanje ugrađene kopije:
+
+```bash
+npm run registry:refresh
+```
+
+Skripta preuzima službeni CSV, provjerava obvezne stupce, OIB-e, duplikate i minimalni broj
+zapisa te tek nakon uspješne provjere generira JSON. Nakon osvježavanja pokrenuti provjere
+integracije i produkcijski build:
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
+Javne poveznice izvješća spremaju korištene klasifikacije te URL, najnoviju službenu izmjenu
+i broj zapisa registra u snapshot. Zato se već podijeljeno izvješće ne mijenja nakon kasnijeg
+osvježavanja registra.
+
 ---
 
 ## 4. Ograničenja MVP varijante

@@ -58,6 +58,33 @@ function relativeTime(date: Date): string {
   return date.toLocaleDateString('hr-HR')
 }
 
+function classificationStatus(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null
+  const status = (value as Record<string, unknown>).pravniStatus
+  return typeof status === 'string' ? status : null
+}
+
+export function auditDetailSummary(details: Record<string, unknown>): string {
+  if (typeof details.field === 'string' && details.field.toLocaleLowerCase('hr') === 'oib') {
+    const oldOib = typeof details.oldOib === 'string' && details.oldOib ? details.oldOib : 'nije upisan'
+    const newOib = typeof details.newOib === 'string' && details.newOib ? details.newOib : 'nije upisan'
+    const oldStatus = classificationStatus(details.oldClassification)
+    const newStatus = classificationStatus(details.newClassification)
+    const statusChange = oldStatus || newStatus
+      ? ` · Vrsta: ${oldStatus ?? 'nije dostupna'} → ${newStatus ?? 'nije dostupna'}`
+      : ''
+    return `OIB: ${oldOib} → ${newOib}${statusChange}`
+  }
+
+  return Object.entries(details)
+    .slice(0, 2)
+    .map(([key, value]) => {
+      const rendered = value && typeof value === 'object' ? JSON.stringify(value) : String(value)
+      return `${key}: ${rendered.slice(0, 40)}`
+    })
+    .join(' · ')
+}
+
 export function AuditPage() {
   usePageTitle('Audit log')
   const [actionFilter, setActionFilter] = useState<AuditAction | 'all'>('all')
@@ -233,10 +260,7 @@ export function AuditPage() {
                         <span className="font-mono">{log.entityId.slice(0, 12)}…</span>
                       </td>
                       <td className="px-4 py-3 text-gray-400 text-xs max-w-xs truncate" title={JSON.stringify(log.details)}>
-                        {Object.entries(log.details)
-                          .slice(0, 2)
-                          .map(([k, v]) => `${k}: ${String(v).slice(0, 30)}`)
-                          .join(' · ')}
+                        {auditDetailSummary(log.details)}
                       </td>
                     </tr>
                   ))}
@@ -261,6 +285,11 @@ export function AuditPage() {
                 <p className="text-xs text-gray-400 mt-1">
                   {log.entityType} / {log.entityId.slice(0, 12)}
                 </p>
+                {auditDetailSummary(log.details) && (
+                  <p className="mt-2 text-xs leading-relaxed text-gray-500">
+                    {auditDetailSummary(log.details)}
+                  </p>
+                )}
               </div>
             ))}
           </div>

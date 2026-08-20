@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -11,6 +11,18 @@ import { getAppSettings } from '../hooks/useAppSettings'
 import { currentUser } from '../services/authService'
 import { validateOib, formatOibError } from '../utils/oibValidator'
 import { DII_REGISTRY, DII_REGISTRY_TOTAL } from '../data/diiRegistry'
+import { RegistryClassificationFilters } from '../components/RegistryClassificationFilters'
+import {
+  buildClassificationOptions,
+  buildInstitutionClassificationMap,
+  createEmptyClassificationFilters,
+  fallbackClassification,
+  matchesClassificationFilters,
+  selectedClassificationFilterCount,
+  type ClassificationDimension,
+  type ClassificationFilterState,
+} from '../utils/reportFilters'
+import { getRegistry, PRAVNI_STATUSI } from '../utils/registryLoader'
 
 const YEARS = [2024, 2025, 2026, 2027, 2028]
 
@@ -376,6 +388,9 @@ export function DashboardPage() {
 
   const queryClient = useQueryClient()
   const [yearFilter, setYearFilter] = useState<number | 'all'>(appSettings.defaultYear)
+  const [classificationFilters, setClassificationFilters] = useState<ClassificationFilterState>(
+    () => createEmptyClassificationFilters(),
+  )
   const [modal,      setModal]      = useState<ModalMode | null>(null)
   const closeModal = useCallback(() => {
     setModal(null)
@@ -392,20 +407,60 @@ export function DashboardPage() {
     queryKey: ['allFinancialEntries'],
     queryFn: () => getProvider().getAllFinancialEntries(),
   })
-  const { data: allInstitutions = [] } = useQuery({
+  const { data: allInstitutions = [], isLoading: institutionLoading } = useQuery({
     queryKey: ['institutions'],
     queryFn: () => getProvider().getInstitutions(),
   })
-  const loading = batchLoading || entriesLoading
+  const {
+    data: registry,
+    isLoading: registryLoading,
+    isError: registryError,
+  } = useQuery({
+    queryKey: ['registry'],
+    queryFn: getRegistry,
+    staleTime: Infinity,
+  })
+  const loading = batchLoading || entriesLoading || institutionLoading || registryLoading
 
-  const activeBatches = batches.filter(b => b.isActive !== false)
+  const classifications = useMemo(
+    () => buildInstitutionClassificationMap(allInstitutions, registry?.byOib ?? new Map()),
+    [allInstitutions, registry],
+  )
+  const classificationOptions = useMemo(
+    () => buildClassificationOptions(
+      classifications,
+      {
+        pravniStatus: registry?.pravniStatusi ?? [],
+        djelatnost: registry?.djelatnosti ?? [],
+        osnivac: registry?.osnivaci ?? [],
+      },
+      PRAVNI_STATUSI,
+    ),
+    [classifications, registry],
+  )
+  const selectedClassificationCount = selectedClassificationFilterCount(classificationFilters)
+
+  const updateClassificationFilter = useCallback((dimension: ClassificationDimension, values: Set<string>) => {
+    setClassificationFilters(current => ({ ...current, [dimension]: values }))
+  }, [])
+
+  const institutionMatchesScope = useCallback((institutionId: string) => {
+    if (!registry) return true
+    return matchesClassificationFilters(
+      classifications[institutionId] ?? fallbackClassification(),
+      classificationFilters,
+    )
+  }, [classificationFilters, classifications, registry])
+
+  const allActiveBatches = batches.filter(b => b.isActive !== false)
+  const activeBatches = allActiveBatches.filter(b => institutionMatchesScope(b.institutionId))
   const activeIds     = new Set(activeBatches.map(b => b.id!))
-  const activeInstIds = new Set(activeBatches.map(b => b.institutionId).filter(Boolean))
 
-  // Count how many of the 150 DII reference bodies have an active batch in the app (matched by OIB)
+  // DII popis dostave je zaseban operativni pokazatelj i ne ovisi o TJV klasifikacijskim filtrima.
+  const allActiveInstIds = new Set(allActiveBatches.map(b => b.institutionId).filter(Boolean))
   const diiOibSet = new Set(DII_REGISTRY.map(e => e.oib).filter(Boolean) as string[])
   const registryLinked = allInstitutions
-    .filter(i => i.id != null && activeInstIds.has(i.id) && diiOibSet.has(i.oib))
+    .filter(i => i.id != null && allActiveInstIds.has(i.id) && diiOibSet.has(i.oib))
     .length
 
   // Računamo iz stvarnih neriješenih issues (pouzdanije od batch.errorCount koji može biti zastario)
@@ -457,6 +512,44 @@ export function DashboardPage() {
     <div>
       <h1 className="text-xl font-bold mb-5" style={{ color: 'var(--t1)' }}>Dashboard</h1>
 
+      <section className="mb-5 rounded-2xl border border-gray-200 bg-white p-4 sm:p-5" aria-labelledby="dashboard-classification-title">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 id="dashboard-classification-title" className="text-sm font-semibold text-gray-800">
+              Službena klasifikacija tijela javne vlasti
+            </h2>
+            <p className="mt-1 text-xs text-gray-500">
+              Odabir se primjenjuje na uvoze, institucije, nalaze i sve financijske agregate na ovoj stranici.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+              {institutions} institucija u opsegu
+            </span>
+            {selectedClassificationCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setClassificationFilters(createEmptyClassificationFilters())}
+                className="rounded-lg px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
+              >
+                Poništi sve ({selectedClassificationCount})
+              </button>
+            )}
+          </div>
+        </div>
+        {registryError ? (
+          <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Službeni registar trenutačno nije dostupan. Dashboard prikazuje nefiltrirane podatke; klasifikacijski filtri su privremeno onemogućeni.
+          </div>
+        ) : (
+          <RegistryClassificationFilters
+            options={classificationOptions}
+            selected={classificationFilters}
+            onChange={updateClassificationFilter}
+          />
+        )}
+      </section>
+
       {/* Stat kartice */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <StatCard label="Uvozi"   value={activeBatches.length} color="blue" />
@@ -475,7 +568,7 @@ export function DashboardPage() {
         />
       </div>
 
-      {/* Dostava podataka — summary (dinamički iz aplikacije) */}
+      {/* DII popis dostave — zaseban operativni pokazatelj, neovisan o TJV filterima */}
       {(() => {
         const total = DII_REGISTRY_TOTAL
         const linked = registryLinked
@@ -484,8 +577,8 @@ export function DashboardPage() {
         return (
           <Link to="/institutions" state={{ view: 'registar' }} className="block bg-white rounded-2xl border border-gray-200 px-5 py-4 mb-6 hover:bg-gray-50 transition-colors group">
             <div className="flex items-center justify-between mb-1">
-              <p className="text-sm font-semibold text-gray-700">Dostava podataka u aplikaciju</p>
-              <span className="text-xs text-gray-400 group-hover:text-blue-600 transition-colors">Prikaži registar →</span>
+              <p className="text-sm font-semibold text-gray-700">DII popis dostave — pokrivenost</p>
+              <span className="text-xs text-gray-400 group-hover:text-blue-600 transition-colors">Prikaži popis dostave →</span>
             </div>
             <div className="flex items-baseline gap-2 mb-2">
               <span className="text-2xl font-bold text-emerald-700">{linked}</span>
@@ -498,6 +591,7 @@ export function DashboardPage() {
             <div className="text-xs text-gray-500">
               <span className="font-semibold text-emerald-700">{linked}</span> s aktivnim batchem ·{' '}
               <span className="font-semibold text-red-600">{remaining}</span> bez uploada
+              <span className="mt-1 block text-gray-400">Neovisno o filtrima službene TJV klasifikacije.</span>
             </div>
           </Link>
         )

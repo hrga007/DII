@@ -11,6 +11,9 @@ import { currentUser } from '../services/authService'
 import { useToast } from '../hooks/useToast'
 import { StatusBadge } from '../components/StatusBadge'
 import type { ImportBatch } from '../models/importBatch'
+import { RegistryClassificationMeta } from '../components/RegistryClassificationFilters'
+import { getRegistry, type RegistryData } from '../utils/registryLoader'
+import { fallbackClassification, type InstitutionClassification } from '../utils/reportFilters'
 
 // ─── Tipovi redaka ────────────────────────────────────────────────
 type ItemStatus = 'previewing' | 'ready' | 'duplicate' | 'importing' | 'done' | 'error'
@@ -65,14 +68,59 @@ function QueueCard({
   onImport,
   onForceImport,
   onRemove,
+  registry,
+  registryError,
 }: {
   item: QueueItem
   onImport:       () => void
   onForceImport:  () => void
   onRemove:       () => void
+  registry?: RegistryData
+  registryError: boolean
 }) {
   const st = STATUS_STYLE[item.status]
   const { preview } = item
+  const registryEntry = preview?.institutionOib
+    ? registry?.byOib.get(preview.institutionOib.replace(/\s/g, ''))
+    : undefined
+  const previewClassification: InstitutionClassification | undefined = preview && registry
+    ? registryEntry
+      ? {
+          pravniStatus: registryEntry.pravniStatus,
+          djelatnost: registryEntry.djelatnost,
+          osnivac: registryEntry.osnivac,
+          registryMatched: true,
+        }
+      : fallbackClassification()
+    : undefined
+
+  const classificationPreview = preview && (
+    <div className={`rounded-lg border px-2.5 py-2 ${
+      previewClassification?.registryMatched
+        ? 'border-emerald-100 bg-emerald-50/60'
+        : registryError
+          ? 'border-amber-200 bg-amber-50'
+          : previewClassification
+            ? 'border-amber-200 bg-amber-50'
+            : 'border-gray-100 bg-gray-50'
+    }`}>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Službena klasifikacija</p>
+      {previewClassification ? (
+        <>
+          <RegistryClassificationMeta classification={previewClassification} className="mt-1 max-w-none" />
+          {!previewClassification.registryMatched && (
+            <p className="mt-1 text-xs font-medium text-amber-800">
+              ⚠ Nekategorizirano — OIB nije pronađen u Popisu tijela javne vlasti.
+            </p>
+          )}
+        </>
+      ) : registryError ? (
+        <p className="mt-1 text-xs font-medium text-amber-800">Službeni registar trenutačno nije moguće učitati.</p>
+      ) : (
+        <p className="mt-1 text-xs text-gray-500">Učitavanje klasifikacije…</p>
+      )}
+    </div>
+  )
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
@@ -141,6 +189,7 @@ function QueueCard({
                 </p>
               </div>
             </div>
+            {classificationPreview}
             <div className="flex gap-2 justify-end">
               <button onClick={onRemove}
                 className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
@@ -172,6 +221,8 @@ function QueueCard({
                 </div>
               )}
             </div>
+
+            {classificationPreview}
 
             {/* Brojevi */}
             <div className="flex gap-3 text-xs text-gray-500">
@@ -227,17 +278,32 @@ export function UploadPage() {
   const { showToast } = useToast()
   const queryClient = useQueryClient()
 
+  const { data: registry, isError: registryError } = useQuery({
+    queryKey: ['registry'],
+    queryFn: getRegistry,
+    staleTime: Infinity,
+  })
+
   const { data: batches = null, isLoading: batchLoad } = useQuery({
     queryKey: ['batches'],
     queryFn: () => getProvider().getBatches(),
     select: (data) => data as ImportBatch[] | null,
   })
 
+  async function invalidateImportedData() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['batches'] }),
+      queryClient.invalidateQueries({ queryKey: ['institutions'] }),
+      queryClient.invalidateQueries({ queryKey: ['allFinancialEntries'] }),
+      queryClient.invalidateQueries({ queryKey: ['issues'] }),
+    ])
+  }
+
   async function handleDeleteBatch(id: string) {
     setDeletingId(id); setConfirmId(null)
     try {
       await getProvider().deleteBatch(id)
-      await queryClient.invalidateQueries({ queryKey: ['batches'] })
+      await invalidateImportedData()
       showToast('Batch uspješno obrisan', 'success')
     } catch {
       showToast('Greška pri brisanju batcha', 'error')
@@ -274,7 +340,7 @@ export function UploadPage() {
           details: { supersededBatchId: oldBatchId, institutionId },
         })
       }
-      await queryClient.invalidateQueries({ queryKey: ['batches'] })
+      await invalidateImportedData()
       showToast('Batch postavljen kao zamjena', 'success')
     } catch {
       showToast('Greška pri postavljanju zamjene', 'error')
@@ -324,8 +390,8 @@ export function UploadPage() {
     try {
       const result = await runImport(file, (p) => updateItem(uid, { progress: p }), force)
       updateItem(uid, { status: 'done', result })
-      // Invalidate batch lista
-      await queryClient.invalidateQueries({ queryKey: ['batches'] })
+      // Uvoz mijenja institucije, aktivne unose, batcheve i pokazatelje kvalitete.
+      await invalidateImportedData()
       showToast(
         `${file.name}: ${result.financialEntriesCount} unosa uvezeno`,
         result.errorCount > 0 ? 'warning' : 'success'
@@ -516,6 +582,8 @@ export function UploadPage() {
                   onImport={() => importItem(item.uid, item.file)}
                   onForceImport={() => importItem(item.uid, item.file, true)}
                   onRemove={() => setQueue(prev => prev.filter(q => q.uid !== item.uid))}
+                  registry={registry}
+                  registryError={registryError}
                 />
               ))}
 

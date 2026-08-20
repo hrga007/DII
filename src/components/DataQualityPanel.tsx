@@ -2,6 +2,9 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getFirebaseAuth } from '../config/firebase'
 import { useToast } from '../hooks/useToast'
+import { getProvider } from '../providers'
+import { getRegistry, REGISTRY_SOURCE_URL } from '../utils/registryLoader'
+import { classifyInstitution } from '../utils/reportFilters'
 import {
   applyDataRepair,
   recordDataQualityCheck,
@@ -136,6 +139,26 @@ export function DataQualityPanel() {
   const queryClient = useQueryClient()
   const [page, setPage] = useState(0)
 
+  const { data: institutions = [], isLoading: institutionsLoading } = useQuery({
+    queryKey: ['institutions'],
+    queryFn: () => getProvider().getInstitutions(),
+  })
+  const {
+    data: registry,
+    isLoading: registryLoading,
+    isError: registryError,
+  } = useQuery({
+    queryKey: ['registry'],
+    queryFn: getRegistry,
+    staleTime: Infinity,
+  })
+  const unmatchedInstitutions = useMemo(
+    () => registry
+      ? institutions.filter(institution => !classifyInstitution(institution, registry.byOib).registryMatched)
+      : [],
+    [institutions, registry],
+  )
+
   const auditQuery = useQuery({
     queryKey: ['dataIntegrityAudit'],
     queryFn: runDataIntegrityAudit,
@@ -212,6 +235,60 @@ export function DataQualityPanel() {
             {isBusy ? 'Provjeravam...' : 'Pokreni provjeru'}
           </button>
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-gray-200 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-gray-800">Pokrivenost službenom klasifikacijom</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Institucije se po OIB-u provjeravaju u Popisu tijela javne vlasti; klasifikacija se ne kopira u Firestore.
+            </p>
+          </div>
+          <a
+            href={REGISTRY_SOURCE_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs font-medium text-blue-700 hover:underline"
+          >
+            Službeni izvor ↗
+          </a>
+        </div>
+
+        {registryLoading || institutionsLoading ? (
+          <p className="mt-4 text-sm text-gray-400">Provjera OIB podudaranja…</p>
+        ) : registryError || !registry ? (
+          <p role="alert" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Službeni registar trenutačno nije moguće učitati; pokrivenost nije izračunata.
+          </p>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="rounded-xl bg-emerald-50 px-4 py-3">
+              <p className="text-xs text-emerald-700">Upareno po OIB-u</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-900">
+                {institutions.length - unmatchedInstitutions.length} / {institutions.length}
+              </p>
+            </div>
+            <details className={`rounded-xl border px-4 py-3 ${
+              unmatchedInstitutions.length > 0
+                ? 'border-amber-200 bg-amber-50 text-amber-900'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-900'
+            }`}>
+              <summary className="cursor-pointer text-xs font-semibold">
+                Nekategorizirano: {unmatchedInstitutions.length}
+              </summary>
+              {unmatchedInstitutions.length > 0 && (
+                <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-y-auto pl-4 text-xs">
+                  {unmatchedInstitutions.map(institution => (
+                    <li key={institution.id ?? `${institution.name}-${institution.oib}`}>
+                      {institution.name} · OIB: {institution.oib?.trim() || 'nije upisan'}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </details>
+          </div>
+        )}
       </section>
 
       {report && (

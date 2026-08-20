@@ -42,8 +42,36 @@ export interface ShareSnapshot {
   batches?: ImportBatch[]
   /** Snapshot financijskih unosa */
   entries: FinancialEntry[]
+  /**
+   * Klasifikacija institucija iz službenog Popisa tijela javne vlasti.
+   *
+   * Sprema se uz snapshot kako javni link ne bi ovisio o naknadnim
+   * promjenama registra. Opcionalno je radi kompatibilnosti sa starim
+   * podijeljenim izvješćima.
+   */
+  institutionClassifications?: Record<string, ShareInstitutionClassification>
+  /**
+   * Verzija službenog registra iz koje je izvedena spremljena klasifikacija.
+   *
+   * Opcionalno je radi kompatibilnosti sa snapshotima nastalima prije nego što
+   * su se metapodaci izvora spremali uz javnu poveznicu.
+   */
+  registrySource?: ShareRegistrySource
   /** Snapshot instaliranih resursa (samo za institution share) */
   resources?: InstalledResource[]
+}
+
+export interface ShareInstitutionClassification {
+  pravniStatus: string
+  djelatnost: string
+  osnivac: string
+  registryMatched?: boolean
+}
+
+export interface ShareRegistrySource {
+  url: string
+  updatedAt: string | null
+  recordCount: number
 }
 
 export interface ShareFilters {
@@ -51,6 +79,10 @@ export interface ShareFilters {
   categories?: CategoryGroup[]
   valueType?: 'realizirano' | 'planirano' | 'oba'
   institutionId?: string         // za institution share
+  /** Odabrane službene klasifikacije; izostanak znači "sve". */
+  pravniStatusi?: string[]
+  djelatnosti?: string[]
+  osnivaci?: string[]
 }
 
 export const EXPIRY_OPTIONS = [
