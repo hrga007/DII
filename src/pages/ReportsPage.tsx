@@ -7,6 +7,22 @@ import { getProvider } from '../providers'
 import type { FinancialEntry, CategoryGroup } from '../models/financialEntry'
 import { ShareModal } from '../components/ShareModal'
 import type { ShareSnapshot } from '../models/shareLink'
+import { RegistryClassificationFilters, RegistryClassificationMeta } from '../components/RegistryClassificationFilters'
+import { getRegistry, PRAVNI_STATUSI, REGISTRY_SOURCE_URL } from '../utils/registryLoader'
+import {
+  buildClassificationOptions,
+  buildInstitutionClassificationMap,
+  createEmptyClassificationFilters,
+  fallbackClassification,
+  filterReportEntries,
+  matchesClassificationFilters,
+  pickInstitutionClassifications,
+  selectedClassificationFilterCount,
+  serializeClassificationFilters,
+  type ClassificationDimension,
+  type ClassificationFilterState,
+  type RegistryClassificationEntry,
+} from '../utils/reportFilters'
 
 const CATEGORIES: CategoryGroup[] = ['CAPEX', 'LICENCE', 'ODRZAVANJE', 'OPEX', 'CLOUD']
 const CAT_LABELS: Record<CategoryGroup, string> = {
@@ -17,6 +33,7 @@ const CAT_LABELS: Record<CategoryGroup, string> = {
   CLOUD: 'Cloud',
 }
 const ALL_YEARS = [2024, 2025, 2026, 2027, 2028]
+const EMPTY_REGISTRY = new Map<string, RegistryClassificationEntry>()
 
 type SortCol = CategoryGroup | 'Ukupno' | 'name'
 type SortDir = 'asc' | 'desc'
@@ -34,6 +51,9 @@ export function ReportsPage() {
   const [instSearch, setInstSearch] = useState('')
   const [instFilter, setInstFilter] = useState<string | null>(null) // institution id or null=all
   const [valueType, setValueType] = useState<'realizirano' | 'planirano' | 'oba'>('realizirano')
+  const [classificationFilters, setClassificationFilters] = useState<ClassificationFilterState>(
+    createEmptyClassificationFilters,
+  )
 
   // Sort
   const [sortCol, setSortCol] = useState<SortCol>('Ukupno')
@@ -50,7 +70,18 @@ export function ReportsPage() {
     queryKey: ['institutions'],
     queryFn: () => getProvider().getInstitutions(),
   })
-  const loading = entriesLoading || instLoading
+  const {
+    data: registry,
+    isLoading: registryLoading,
+    isError: registryError,
+    isFetching: registryFetching,
+    refetch: refetchRegistry,
+  } = useQuery({
+    queryKey: ['registry'],
+    queryFn: getRegistry,
+    staleTime: Infinity,
+  })
+  const loading = entriesLoading || instLoading || registryLoading
 
   // Default year to the most common year in data
   useEffect(() => {
@@ -67,16 +98,41 @@ export function ReportsPage() {
     return ALL_YEARS.filter((y) => ys.has(y))
   }, [allEntries])
 
+  const institutionClassifications = useMemo(
+    () => buildInstitutionClassificationMap(institutions, registry?.byOib ?? EMPTY_REGISTRY),
+    [institutions, registry],
+  )
+
+  const classificationOptions = useMemo(
+    () => buildClassificationOptions(
+      institutionClassifications,
+      {
+        pravniStatus: registry?.pravniStatusi,
+        djelatnost: registry?.djelatnosti,
+        osnivac: registry?.osnivaci,
+      },
+      PRAVNI_STATUSI,
+    ),
+    [institutionClassifications, registry],
+  )
+
+  const classificationFilterCount = selectedClassificationFilterCount(classificationFilters)
+  const uncategorizedInstitutionCount = useMemo(
+    () => Object.values(institutionClassifications).filter(value => !value.registryMatched).length,
+    [institutionClassifications],
+  )
+
   // Filtered entries
   const filteredEntries = useMemo(() => {
-    return allEntries.filter((e) => {
-      if (year !== 'all' && e.year !== year) return false
-      if (!selectedCats.has(e.categoryGroup)) return false
-      if (instFilter && e.institutionId !== instFilter) return false
-      if (valueType !== 'oba' && e.valueType !== valueType) return false
-      return true
+    return filterReportEntries(allEntries, {
+      year,
+      categories: selectedCats,
+      valueType,
+      institutionId: instFilter,
+      classifications: institutionClassifications,
+      classificationFilters,
     })
-  }, [allEntries, year, selectedCats, instFilter, valueType])
+  }, [allEntries, year, selectedCats, instFilter, valueType, institutionClassifications, classificationFilters])
 
   // Institutions to show (those with data after filters)
   const instIds = useMemo(
@@ -126,11 +182,30 @@ export function ReportsPage() {
     })
   }
 
+  function updateClassificationFilter(dimension: ClassificationDimension, values: Set<string>) {
+    setClassificationFilters(previous => ({ ...previous, [dimension]: values }))
+  }
+
+  function clearClassificationFilters() {
+    setClassificationFilters(createEmptyClassificationFilters())
+  }
+
   // Institutution autocomplete filtered list
   const instSuggestions = useMemo(
-    () => institutions.filter((i) => i.name.toLowerCase().includes(instSearch.toLowerCase())).slice(0, 8),
-    [institutions, instSearch]
+    () => institutions
+      .filter(institution => {
+        if (!institution.name.toLocaleLowerCase('hr').includes(instSearch.toLocaleLowerCase('hr'))) return false
+        if (!institution.id) return false
+        return matchesClassificationFilters(
+          institutionClassifications[institution.id] ?? fallbackClassification(),
+          classificationFilters,
+        )
+      })
+      .slice(0, 8),
+    [institutions, instSearch, institutionClassifications, classificationFilters]
   )
+
+  const visibleCats = CATEGORIES.filter((category) => selectedCats.has(category))
 
   // Column totals
   const colTotals = useMemo(() => {
@@ -145,23 +220,35 @@ export function ReportsPage() {
 
     // Sheet 1: Pregled
     const pregledData: (string | number)[][] = [
-      ['Institucija', ...CATEGORIES.map((c) => CAT_LABELS[c]), 'Ukupno'],
+      ['Institucija', 'Vrsta tijela', 'Djelatnost', 'Osnivač', ...visibleCats.map((c) => CAT_LABELS[c]), 'Ukupno'],
       ...sortedPivot.map((r) => [
         r.inst.name,
-        ...CATEGORIES.map((c) => r.catTotals[c]),
+        institutionClassifications[r.inst.id!]?.pravniStatus ?? 'Nekategorizirano',
+        institutionClassifications[r.inst.id!]?.djelatnost ?? 'Nekategorizirano',
+        institutionClassifications[r.inst.id!]?.osnivac ?? 'Nekategorizirano',
+        ...visibleCats.map((c) => r.catTotals[c]),
         r.total,
       ]),
-      ['UKUPNO', ...CATEGORIES.map((c) => colTotals[c]), colTotals['Ukupno']],
+      ['UKUPNO', '', '', '', ...visibleCats.map((c) => colTotals[c]), colTotals['Ukupno']],
     ]
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pregledData), 'Pregled')
+    const pregledSheet = XLSX.utils.aoa_to_sheet(pregledData)
+    pregledSheet['!cols'] = [
+      { wch: 44 }, { wch: 36 }, { wch: 30 }, { wch: 36 },
+      ...visibleCats.map(() => ({ wch: 14 })), { wch: 16 },
+    ]
+    XLSX.utils.book_append_sheet(wb, pregledSheet, 'Pregled')
 
     // Sheet 2: Detalji
     const detaljiData: (string | number)[][] = [
-      ['Institucija', 'Kategorija', 'Kategorija naziv', 'Godina', 'Tip vrijednosti', 'Iznos', 'Napomena'],
+      ['Institucija', 'Vrsta tijela', 'Djelatnost', 'Osnivač', 'Kategorija', 'Kategorija naziv', 'Godina', 'Tip vrijednosti', 'Iznos', 'Napomena'],
       ...filteredEntries.map((e) => {
         const inst = institutions.find((i) => i.id === e.institutionId)
+        const classification = institutionClassifications[e.institutionId] ?? fallbackClassification()
         return [
           inst?.name ?? e.institutionId,
+          classification.pravniStatus,
+          classification.djelatnost,
+          classification.osnivac,
           e.categoryGroup,
           e.categoryName,
           e.year,
@@ -171,7 +258,30 @@ export function ReportsPage() {
         ]
       }),
     ]
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detaljiData), 'Detalji')
+    const detaljiSheet = XLSX.utils.aoa_to_sheet(detaljiData)
+    detaljiSheet['!cols'] = [
+      { wch: 44 }, { wch: 36 }, { wch: 30 }, { wch: 36 }, { wch: 14 },
+      { wch: 32 }, { wch: 10 }, { wch: 18 }, { wch: 16 }, { wch: 42 },
+    ]
+    XLSX.utils.book_append_sheet(wb, detaljiSheet, 'Detalji')
+
+    const serializedClassifications = serializeClassificationFilters(classificationFilters)
+    const filterData: (string | number)[][] = [
+      ['Filtar', 'Odabrano'],
+      ['Godina', year === 'all' ? 'Sve godine' : year],
+      ['Kategorije', visibleCats.map(category => CAT_LABELS[category]).join(', ')],
+      ['Tip vrijednosti', valueType === 'oba' ? 'Sve' : valueType],
+      ['Institucija', instFilter ? institutions.find(institution => institution.id === instFilter)?.name ?? instFilter : 'Sve institucije'],
+      ['Vrsta tijela', serializedClassifications.pravniStatusi?.join(', ') ?? 'Sve vrste tijela'],
+      ['Djelatnost', serializedClassifications.djelatnosti?.join(', ') ?? 'Sve djelatnosti'],
+      ['Osnivač', serializedClassifications.osnivaci?.join(', ') ?? 'Svi osnivači'],
+      ['Izvor klasifikacije', `Popis tijela javne vlasti — ${REGISTRY_SOURCE_URL}`],
+      ['Najnovija izmjena u izvoru', registry?.registryUpdatedAt ?? 'Nije navedena'],
+      ['Broj zapisa u korištenoj verziji registra', registry?.entries.length ?? 'Nije dostupno'],
+    ]
+    const filterSheet = XLSX.utils.aoa_to_sheet(filterData)
+    filterSheet['!cols'] = [{ wch: 24 }, { wch: 100 }]
+    XLSX.utils.book_append_sheet(wb, filterSheet, 'Filteri')
 
     const yearLabel = year === 'all' ? 'sve' : year
     XLSX.writeFile(wb, `DII_Izvjestaj_${yearLabel}.xlsx`)
@@ -190,14 +300,31 @@ export function ReportsPage() {
     )
   }
 
+  if (registryError) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-white p-8 text-center shadow-sm">
+        <p className="text-sm font-semibold text-gray-800">Službena klasifikacija trenutačno nije dostupna</p>
+        <p className="mx-auto mt-2 max-w-xl text-sm text-gray-500">
+          Izvještaj nije prikazan kako institucije ne bi bile pogrešno označene kao nekategorizirane.
+        </p>
+        <button
+          type="button"
+          onClick={() => { void refetchRegistry() }}
+          disabled={registryFetching}
+          className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
+        >
+          {registryFetching ? 'Pokušavam…' : 'Pokušaj ponovno'}
+        </button>
+      </div>
+    )
+  }
+
   const renderSortIcon = (col: SortCol) =>
     sortCol === col ? (
       <span className="ml-1 text-xs">{sortDir === 'asc' ? '▲' : '▼'}</span>
     ) : (
       <span className="ml-1 text-xs text-gray-300">⇅</span>
     )
-
-  const visibleCats = CATEGORIES.filter((c) => selectedCats.has(c))
 
   return (
     <div>
@@ -234,20 +361,27 @@ export function ReportsPage() {
           const usedInstIds = new Set(filteredEntries.map(e => e.institutionId))
           const filters: ShareSnapshot['filters'] = {
             year,
-            categories: [...selectedCats],
+            categories: visibleCats,
             valueType,
+            ...serializeClassificationFilters(classificationFilters),
           }
           if (instFilter) filters.institutionId = instFilter
           return {
             filters,
             institutions: institutions.filter(i => i.id && usedInstIds.has(i.id)),
             entries: filteredEntries,
+            institutionClassifications: pickInstitutionClassifications(institutionClassifications, usedInstIds),
+            registrySource: registry ? {
+              url: REGISTRY_SOURCE_URL,
+              updatedAt: registry.registryUpdatedAt,
+              recordCount: registry.entries.length,
+            } : undefined,
           }
         }}
       />
 
       {/* Filter panel */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-5 print:hidden">
+      <section aria-label="Filteri izvještaja" className="bg-white rounded-2xl border border-gray-200 p-4 mb-5 print:hidden">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
           {/* Godina */}
@@ -285,8 +419,10 @@ export function ReportsPage() {
             <div className="flex flex-wrap gap-1.5">
               {CATEGORIES.map((cat) => (
                 <button
+                  type="button"
                   key={cat}
                   onClick={() => toggleCat(cat)}
+                  aria-pressed={selectedCats.has(cat)}
                   className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors border ${
                     selectedCats.has(cat)
                       ? 'bg-blue-600 text-white border-blue-600'
@@ -305,8 +441,10 @@ export function ReportsPage() {
             <div className="flex flex-wrap gap-1.5">
               {(['realizirano', 'planirano', 'oba'] as const).map((vt) => (
                 <button
+                  type="button"
                   key={vt}
                   onClick={() => setValueType(vt)}
+                  aria-pressed={valueType === vt}
                   className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors border ${
                     valueType === vt
                       ? vt === 'realizirano' ? 'bg-green-600 text-white border-green-600'
@@ -323,19 +461,27 @@ export function ReportsPage() {
 
           {/* Institucija autocomplete */}
           <div className="relative">
-            <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Institucija</p>
+            <label htmlFor="report-institution-filter" className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Institucija</label>
             <input
+              id="report-institution-filter"
               type="text"
               value={instFilter ? (institutions.find((i) => i.id === instFilter)?.name ?? instSearch) : instSearch}
               onChange={(e) => { setInstSearch(e.target.value); setInstFilter(null) }}
-              onFocus={() => { if (instFilter) setInstSearch('') }}
+              onFocus={(event) => { if (instFilter) event.currentTarget.select() }}
               placeholder="Sve institucije..."
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={!instFilter && Boolean(instSearch) && instSuggestions.length > 0}
+              aria-controls="report-institution-suggestions"
               className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             {!instFilter && instSearch && instSuggestions.length > 0 && (
-              <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+              <div id="report-institution-suggestions" role="listbox" className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
                 {instSuggestions.map((i) => (
                   <button
+                    type="button"
+                    role="option"
+                    aria-selected={false}
                     key={i.id}
                     onClick={() => { setInstFilter(i.id!); setInstSearch(i.name) }}
                     className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 hover:text-blue-700 transition-colors"
@@ -347,6 +493,8 @@ export function ReportsPage() {
             )}
             {instFilter && (
               <button
+                type="button"
+                aria-label="Ukloni filtar institucije"
                 onClick={() => { setInstFilter(null); setInstSearch('') }}
                 className="absolute right-2 top-8 text-gray-400 hover:text-gray-600 text-lg leading-none"
               >
@@ -355,7 +503,46 @@ export function ReportsPage() {
             )}
           </div>
         </div>
-      </div>
+
+        <div className="mt-4 border-t border-gray-100 pt-4">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-600">Klasifikacija institucija</h2>
+                <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+                  Službeni izvor
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-gray-400">
+                <a
+                  href={REGISTRY_SOURCE_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-blue-700 hover:underline"
+                >
+                  Popis tijela javne vlasti
+                </a>
+                {' · povezivanje po OIB-u'}
+                {uncategorizedInstitutionCount > 0 && ` · ${uncategorizedInstitutionCount} bez službenog uparivanja`}
+              </p>
+            </div>
+            {classificationFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={clearClassificationFilters}
+                className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-50 hover:text-blue-900"
+              >
+                Poništi klasifikacijske filtre
+              </button>
+            )}
+          </div>
+          <RegistryClassificationFilters
+            options={classificationOptions}
+            selected={classificationFilters}
+            onChange={updateClassificationFilter}
+          />
+        </div>
+      </section>
 
       {/* Results summary */}
       <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 mb-3 print:hidden">
@@ -364,6 +551,14 @@ export function ReportsPage() {
         <span>{filteredEntries.length} unosa</span>
         {year !== 'all' && <><span>·</span><span>Godina: {year}</span></>}
         {instFilter && <><span>·</span><span className="text-blue-600">{institutions.find(i => i.id === instFilter)?.name}</span></>}
+        {classificationFilterCount > 0 && (
+          <>
+            <span>·</span>
+            <span className="rounded-lg bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+              {classificationFilterCount} klasifikacijskih odabira
+            </span>
+          </>
+        )}
         <span className="ml-auto text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1">
           Prikazuju se podaci iz aktivnih batcheva
         </span>
@@ -374,6 +569,20 @@ export function ReportsPage() {
         <h1 className="text-2xl font-bold">DII IT Ulaganja — Izvještaj</h1>
         <p className="text-sm text-gray-500 mt-1">
           Godina: {year === 'all' ? 'Sve godine' : year} · Tip: {valueType} · Datum: {new Date().toLocaleDateString('hr-HR')}
+        </p>
+        {classificationFilters.pravniStatus.size > 0 && (
+          <p className="mt-1 text-xs text-gray-500">Vrsta tijela: {[...classificationFilters.pravniStatus].join(', ')}</p>
+        )}
+        {classificationFilters.djelatnost.size > 0 && (
+          <p className="mt-1 text-xs text-gray-500">Djelatnost: {[...classificationFilters.djelatnost].join(', ')}</p>
+        )}
+        {classificationFilters.osnivac.size > 0 && (
+          <p className="mt-1 text-xs text-gray-500">Osnivač: {[...classificationFilters.osnivac].join(', ')}</p>
+        )}
+        <p className="mt-2 text-xs text-gray-500">
+          Izvor klasifikacije: Popis tijela javne vlasti ({REGISTRY_SOURCE_URL})
+          {' · najnovija izmjena u izvoru: '}{registry?.registryUpdatedAt ?? 'nije navedena'}
+          {' · zapisa u korištenoj verziji: '}{registry?.entries.length.toLocaleString('hr-HR') ?? 'nije dostupno'}
         </p>
       </div>
 
@@ -415,8 +624,12 @@ export function ReportsPage() {
                     className="hover:bg-blue-50/50 cursor-pointer transition-colors"
                     onClick={() => navigate(`/institucije/${inst.id}`)}
                   >
-                    <td className="px-4 py-3 font-medium text-blue-700 hover:underline whitespace-nowrap">
-                      {inst.name}
+                    <td className="min-w-80 px-4 py-3 font-medium text-blue-700 hover:underline">
+                      <span>{inst.name}</span>
+                      <RegistryClassificationMeta
+                        classification={institutionClassifications[inst.id!] ?? fallbackClassification()}
+                        className="no-underline"
+                      />
                     </td>
                     {visibleCats.map((cat) => (
                       <td key={cat} className={`px-3 py-3 text-right whitespace-nowrap ${catTotals[cat] > 0 ? 'text-gray-800' : 'text-gray-300'}`}>

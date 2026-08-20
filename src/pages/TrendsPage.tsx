@@ -7,6 +7,19 @@ import { CATEGORIES, sumByCategoryYear, sumByYear, yoyChange, topInstitutions, c
 import type { CategoryGroup } from '../models/financialEntry'
 import { LineChart } from '../components/LineChart'
 import { YoYBadge } from '../components/YoYBadge'
+import { RegistryClassificationFilters, RegistryClassificationMeta } from '../components/RegistryClassificationFilters'
+import {
+  buildClassificationOptions,
+  buildInstitutionClassificationMap,
+  createEmptyClassificationFilters,
+  fallbackClassification,
+  matchesClassificationFilters,
+  selectedClassificationFilterCount,
+  type ClassificationDimension,
+  type ClassificationFilterState,
+  type InstitutionClassificationMap,
+} from '../utils/reportFilters'
+import { getRegistry, PRAVNI_STATUSI } from '../utils/registryLoader'
 
 const CAT_LABELS: Record<CategoryGroup, string> = {
   CAPEX: 'CAPEX',
@@ -40,6 +53,9 @@ export function TrendsPage() {
   usePageTitle('Trendovi')
   const [tab, setTab] = useState<Tab>('trendovi')
   const [valueType, setValueType] = useState<'realizirano' | 'planirano' | 'oba'>('realizirano')
+  const [classificationFilters, setClassificationFilters] = useState<ClassificationFilterState>(
+    () => createEmptyClassificationFilters(),
+  )
 
   const { data: entries = [], isLoading: el } = useQuery({
     queryKey: ['allFinancialEntries'],
@@ -49,7 +65,56 @@ export function TrendsPage() {
     queryKey: ['institutions'],
     queryFn: () => getProvider().getInstitutions(),
   })
-  const loading = el || il
+  const {
+    data: registry,
+    isLoading: rl,
+    isError: registryError,
+  } = useQuery({
+    queryKey: ['registry'],
+    queryFn: getRegistry,
+    staleTime: Infinity,
+  })
+  const loading = el || il || rl
+
+  const classifications = useMemo(
+    () => buildInstitutionClassificationMap(institutions, registry?.byOib ?? new Map()),
+    [institutions, registry],
+  )
+  const classificationOptions = useMemo(
+    () => buildClassificationOptions(
+      classifications,
+      {
+        pravniStatus: registry?.pravniStatusi ?? [],
+        djelatnost: registry?.djelatnosti ?? [],
+        osnivac: registry?.osnivaci ?? [],
+      },
+      PRAVNI_STATUSI,
+    ),
+    [classifications, registry],
+  )
+  const scopedInstitutions = useMemo(
+    () => registry
+      ? institutions.filter(institution => institution.id && matchesClassificationFilters(
+        classifications[institution.id] ?? fallbackClassification(),
+        classificationFilters,
+      ))
+      : institutions,
+    [classificationFilters, classifications, institutions, registry],
+  )
+  const scopedEntries = useMemo(
+    () => registry
+      ? entries.filter(entry => matchesClassificationFilters(
+        classifications[entry.institutionId] ?? fallbackClassification(),
+        classificationFilters,
+      ))
+      : entries,
+    [classificationFilters, classifications, entries, registry],
+  )
+  const selectedClassificationCount = selectedClassificationFilterCount(classificationFilters)
+
+  function updateClassificationFilter(dimension: ClassificationDimension, values: Set<string>) {
+    setClassificationFilters(current => ({ ...current, [dimension]: values }))
+  }
 
   if (loading) {
     return (
@@ -99,6 +164,44 @@ export function TrendsPage() {
         </div>
       </div>
 
+      <section className="mb-5 rounded-2xl border border-gray-200 bg-white p-4 sm:p-5" aria-labelledby="trends-classification-title">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 id="trends-classification-title" className="text-sm font-semibold text-gray-800">
+              Službena klasifikacija tijela javne vlasti
+            </h2>
+            <p className="mt-1 text-xs text-gray-500">
+              Zajednički opseg za trendove, rang-listu i usporedbu institucija.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+              {scopedInstitutions.length} institucija · {scopedEntries.length} unosa
+            </span>
+            {selectedClassificationCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setClassificationFilters(createEmptyClassificationFilters())}
+                className="rounded-lg px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
+              >
+                Poništi sve ({selectedClassificationCount})
+              </button>
+            )}
+          </div>
+        </div>
+        {registryError ? (
+          <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Službeni registar trenutačno nije dostupan. Analitika ostaje nefiltrirana, a klasifikacijski filtri su privremeno onemogućeni.
+          </div>
+        ) : (
+          <RegistryClassificationFilters
+            options={classificationOptions}
+            selected={classificationFilters}
+            onChange={updateClassificationFilter}
+          />
+        )}
+      </section>
+
       {/* Tabs */}
       <div className="flex gap-1 mb-5 border-b border-gray-200 overflow-x-auto">
         {([
@@ -118,9 +221,9 @@ export function TrendsPage() {
         ))}
       </div>
 
-      {tab === 'trendovi'  && <TrendsTab  entries={entries} valueType={valueType} />}
-      {tab === 'top'       && <TopTab     entries={entries} institutions={institutions} valueType={valueType} />}
-      {tab === 'usporedba' && <CompareTab entries={entries} institutions={institutions} valueType={valueType} />}
+      {tab === 'trendovi'  && <TrendsTab  entries={scopedEntries} valueType={valueType} />}
+      {tab === 'top'       && <TopTab     entries={scopedEntries} institutions={scopedInstitutions} classifications={classifications} valueType={valueType} />}
+      {tab === 'usporedba' && <CompareTab entries={scopedEntries} institutions={scopedInstitutions} classifications={classifications} valueType={valueType} />}
     </div>
   )
 }
@@ -196,19 +299,21 @@ function TrendsTab({ entries, valueType }: { entries: Awaited<ReturnType<ReturnT
 // Tab: Top 10 institucija
 // ────────────────────────────────────────────────────────────────────
 function TopTab({
-  entries, institutions, valueType,
+  entries, institutions, classifications, valueType,
 }: {
   entries: Awaited<ReturnType<ReturnType<typeof getProvider>['getAllFinancialEntries']>>
   institutions: Awaited<ReturnType<ReturnType<typeof getProvider>['getInstitutions']>>
+  classifications: InstitutionClassificationMap
   valueType: 'realizirano' | 'planirano' | 'oba'
 }) {
   const availableYears = useMemo(() => [...new Set(entries.map(e => e.year))].sort((a, b) => b - a), [entries])
   const [year, setYear] = useState<number | 'all'>(availableYears[0] ?? 'all')
   const [category, setCategory] = useState<CategoryGroup | 'all'>('all')
+  const effectiveYear = year === 'all' || availableYears.includes(year) ? year : (availableYears[0] ?? 'all')
 
   const top = useMemo(
-    () => topInstitutions(entries, institutions, { year, category, valueType, limit: 10 }),
-    [entries, institutions, year, category, valueType],
+    () => topInstitutions(entries, institutions, { year: effectiveYear, category, valueType, limit: 10 }),
+    [entries, institutions, effectiveYear, category, valueType],
   )
 
   const maxTotal = top[0]?.total ?? 1
@@ -218,7 +323,7 @@ function TopTab({
       <div className="flex flex-wrap items-center gap-2 mb-5">
         <h2 className="text-sm font-semibold text-gray-700 mr-auto">Top 10 institucija</h2>
         <select
-          value={year}
+          value={effectiveYear}
           onChange={(e) => setYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
           className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
@@ -256,6 +361,10 @@ function TopTab({
                       </p>
                       <p className="text-sm font-bold text-gray-800 tabular-nums shrink-0">{fmtFull(row.total)}</p>
                     </div>
+                    <RegistryClassificationMeta
+                      classification={classifications[row.institution.id ?? ''] ?? fallbackClassification()}
+                      className="mb-1.5"
+                    />
                     <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-blue-500 rounded-full transition-all"
@@ -277,23 +386,25 @@ function TopTab({
 // Tab: Usporedba dvije institucije
 // ────────────────────────────────────────────────────────────────────
 function CompareTab({
-  entries, institutions, valueType,
+  entries, institutions, classifications, valueType,
 }: {
   entries: Awaited<ReturnType<ReturnType<typeof getProvider>['getAllFinancialEntries']>>
   institutions: Awaited<ReturnType<ReturnType<typeof getProvider>['getInstitutions']>>
+  classifications: InstitutionClassificationMap
   valueType: 'realizirano' | 'planirano' | 'oba'
 }) {
   const availableYears = useMemo(() => [...new Set(entries.map(e => e.year))].sort((a, b) => b - a), [entries])
   const [year, setYear] = useState<number | 'all'>(availableYears[0] ?? 'all')
   const [aId, setAId] = useState<string>('')
   const [bId, setBId] = useState<string>('')
+  const effectiveYear = year === 'all' || availableYears.includes(year) ? year : (availableYears[0] ?? 'all')
 
   const a = institutions.find(i => i.id === aId)
   const b = institutions.find(i => i.id === bId)
 
   const rows = useMemo(
-    () => (aId && bId ? compareInstitutions(entries, aId, bId, { year, valueType }) : []),
-    [entries, aId, bId, year, valueType],
+    () => (aId && bId ? compareInstitutions(entries, aId, bId, { year: effectiveYear, valueType }) : []),
+    [entries, aId, bId, effectiveYear, valueType],
   )
   const totalA = rows.reduce((s, r) => s + r.a, 0)
   const totalB = rows.reduce((s, r) => s + r.b, 0)
@@ -311,7 +422,11 @@ function CompareTab({
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">— Odaberi —</option>
-            {institutions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+            {institutions.map(i => (
+              <option key={i.id} value={i.id}>
+                {i.name} — {(classifications[i.id ?? ''] ?? fallbackClassification()).pravniStatus}
+              </option>
+            ))}
           </select>
         </div>
         <div>
@@ -322,13 +437,17 @@ function CompareTab({
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">— Odaberi —</option>
-            {institutions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+            {institutions.map(i => (
+              <option key={i.id} value={i.id}>
+                {i.name} — {(classifications[i.id ?? ''] ?? fallbackClassification()).pravniStatus}
+              </option>
+            ))}
           </select>
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">Godina</label>
           <select
-            value={year}
+            value={effectiveYear}
             onChange={(e) => setYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
@@ -347,8 +466,19 @@ function CompareTab({
           Odaberi dvije <strong>različite</strong> institucije
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div>
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+              <p className="text-sm font-semibold text-gray-800">A · {a.name}</p>
+              <RegistryClassificationMeta classification={classifications[aId] ?? fallbackClassification()} />
+            </div>
+            <div className="rounded-xl border border-violet-100 bg-violet-50/60 px-4 py-3">
+              <p className="text-sm font-semibold text-gray-800">B · {b.name}</p>
+              <RegistryClassificationMeta classification={classifications[bId] ?? fallbackClassification()} />
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Kategorija</th>
@@ -382,7 +512,8 @@ function CompareTab({
                 <td className="px-4 py-2 text-right"><YoYBadge pct={totalPct} size="sm" /></td>
               </tr>
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
       )}
     </div>

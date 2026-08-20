@@ -1,7 +1,9 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getProvider } from '../providers'
+import { currentUser } from '../services/authService'
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue } from '../models/financialEntry'
@@ -16,6 +18,9 @@ import { computeQualityScore, gradeColor } from '../utils/dataQuality'
 import { formatOibError } from '../utils/oibValidator'
 import { QualityScoreCard } from '../components/QualityScoreCard'
 import { AnomaliesPanel } from '../components/AnomaliesPanel'
+import { RegistryClassificationMeta } from '../components/RegistryClassificationFilters'
+import { getRegistry, REGISTRY_SOURCE_URL } from '../utils/registryLoader'
+import { classifyInstitution } from '../utils/reportFilters'
 
 const ACTIVITY_LABELS: Record<AuditAction, string> = {
   login:            'Prijava',
@@ -506,6 +511,7 @@ function BatchDiffModal({ batches, onClose }: BatchDiffModalProps) {
 export function InstitutionDetailPage() {
   usePageTitle('Detalji institucije')
   const { id } = useParams<{ id: string }>()
+  const queryClient = useQueryClient()
   const [institution, setInstitution] = useState<Institution | null>(null)
   const [batches, setBatches] = useState<ImportBatch[]>([])
   const [entries, setEntries] = useState<FinancialEntry[]>([])
@@ -528,16 +534,77 @@ export function InstitutionDetailPage() {
   const [activityLoading, setActivityLoading] = useState(false)
   const [activityFetched, setActivityFetched] = useState(false)
 
+  const {
+    data: registry,
+    isLoading: registryLoading,
+    isError: registryError,
+  } = useQuery({
+    queryKey: ['registry'],
+    queryFn: getRegistry,
+    staleTime: Infinity,
+  })
+
+  const classification = useMemo(
+    () => institution && registry ? classifyInstitution(institution, registry.byOib) : undefined,
+    [institution, registry],
+  )
+
   async function handleOibSave() {
     if (!institution?.id) return
     const err = formatOibError(oibValue)
     if (err) { setOibError(err); return }
+    const institutionId = institution.id
+    const oldOib = institution.oib
+    const newOib = oibValue.trim()
+    const updatedInstitution = { ...institution, oib: newOib }
     setOibSaving(true)
     try {
-      await getProvider().patchInstitution(institution.id, { oib: oibValue.trim() })
-      setInstitution(prev => prev ? { ...prev, oib: oibValue.trim() } : prev)
+      let auditRegistry = registry
+      if (!auditRegistry) {
+        try {
+          auditRegistry = await getRegistry()
+        } catch {
+          // OIB se može spremiti i ako ugrađeni registar trenutačno nije dostupan.
+        }
+      }
+      const classificationChange = auditRegistry ? {
+        oldClassification: classifyInstitution(institution, auditRegistry.byOib),
+        newClassification: classifyInstitution(updatedInstitution, auditRegistry.byOib),
+      } : {}
+
+      await getProvider().patchInstitution(institutionId, { oib: newOib })
+      setInstitution(updatedInstitution)
+
+      const user = currentUser()
+      if (user) {
+        try {
+          await getProvider().addAuditLog({
+            userId: user.uid,
+            action: 'manual_correction',
+            entityType: 'institution',
+            entityId: institutionId,
+            timestamp: new Date(),
+            details: {
+              field: 'oib',
+              oldOib,
+              newOib,
+              ...classificationChange,
+            },
+          })
+        } catch {
+          // Promjena OIB-a je već spremljena; nedostupan audit ne smije vratiti UI u staro stanje.
+        }
+      }
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['institutions'] }),
+        queryClient.invalidateQueries({ queryKey: ['allFinancialEntries'] }),
+        queryClient.invalidateQueries({ queryKey: ['batches'] }),
+      ])
       setOibEdit(false)
       setOibError('')
+    } catch (saveError) {
+      setOibError(saveError instanceof Error ? saveError.message : 'Spremanje OIB-a nije uspjelo')
     } finally {
       setOibSaving(false)
     }
@@ -730,7 +797,13 @@ export function InstitutionDetailPage() {
           </div>
           <button
             onClick={() => setShareOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shrink-0"
+            disabled={!registry || registryLoading || registryError}
+            title={registryError
+              ? 'Dijeljenje nije dostupno dok se službeni registar ne učita'
+              : registryLoading || !registry
+                ? 'Pričekajte učitavanje službene klasifikacije'
+                : undefined}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shrink-0 disabled:cursor-wait disabled:opacity-50"
           >
             <span>🔗</span> Podijeli
           </button>
@@ -746,6 +819,53 @@ export function InstitutionDetailPage() {
               </button>
             )
           })()}
+        </div>
+
+        <div className={`mt-4 rounded-xl border px-4 py-3 ${
+          registryError
+            ? 'border-amber-200 bg-amber-50'
+            : classification?.registryMatched
+              ? 'border-emerald-100 bg-emerald-50/60'
+              : registryLoading
+                ? 'border-gray-100 bg-gray-50'
+                : 'border-amber-200 bg-amber-50'
+        }`}>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Službena klasifikacija
+              </p>
+              {registryError ? (
+                <p className="mt-1 text-xs font-medium text-amber-800">
+                  Službeni registar trenutačno nije moguće učitati. Klasifikacija se zato ne prikazuje niti sprema u dijeljeni snapshot.
+                </p>
+              ) : classification ? (
+                <RegistryClassificationMeta classification={classification} className="mt-1 max-w-none text-xs" />
+              ) : registryLoading ? (
+                <p className="mt-1 text-xs text-gray-500">Učitavanje Popisa tijela javne vlasti…</p>
+              ) : (
+                <p className="mt-1 text-xs font-medium text-amber-800">
+                  Nekategorizirano — OIB nije pronađen u službenom Popisu tijela javne vlasti.
+                </p>
+              )}
+              {!registryError && classification && !classification.registryMatched && (
+                <p className="mt-1 text-xs font-medium text-amber-800">
+                  Nekategorizirano — provjerite je li OIB ispravan i postoji li tijelo u službenom popisu.
+                </p>
+              )}
+            </div>
+            <div className="shrink-0 text-right text-[11px] text-gray-500">
+              <a href={REGISTRY_SOURCE_URL} target="_blank" rel="noreferrer" className="font-medium text-blue-600 hover:underline">
+                Popis tijela javne vlasti ↗
+              </a>
+              {registry && (
+                <p className="mt-0.5">
+                  {registry.entries.length.toLocaleString('hr-HR')} tijela
+                  {registry.registryUpdatedAt ? ` · ažurirano ${registry.registryUpdatedAt}` : ''}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Quick stats */}
@@ -775,6 +895,14 @@ export function InstitutionDetailPage() {
           institutions: [institution],
           batches: batches.filter(b => b.isActive),
           entries,
+          institutionClassifications: institution.id && classification ? {
+            [institution.id]: classification,
+          } : undefined,
+          registrySource: registry ? {
+            url: REGISTRY_SOURCE_URL,
+            updatedAt: registry.registryUpdatedAt,
+            recordCount: registry.entries.length,
+          } : undefined,
           resources,
         })}
       />

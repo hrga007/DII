@@ -6,6 +6,8 @@ import { isInitialized } from '../config/firebase'
 import { usePageTitle } from '../hooks/usePageTitle'
 import type { ShareLink } from '../models/shareLink'
 import type { CategoryGroup } from '../models/financialEntry'
+import { RegistryClassificationMeta } from '../components/RegistryClassificationFilters'
+import { REGISTRY_SOURCE_URL } from '../utils/registryLoader'
 
 const CATEGORIES: CategoryGroup[] = ['CAPEX', 'LICENCE', 'ODRZAVANJE', 'OPEX', 'CLOUD']
 const CAT_LABELS: Record<CategoryGroup, string> = {
@@ -18,6 +20,14 @@ const CAT_LABELS: Record<CategoryGroup, string> = {
 
 function fmt(v: number): string {
   return v === 0 ? '—' : v.toLocaleString('hr-HR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+}
+
+function formatRegistryTimestamp(value: string | null): string {
+  if (!value) return 'nije navedena'
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2}))?$/.exec(value)
+  if (!match) return value
+  const [, year, month, day, hour, minute, second] = match
+  return `${day}.${month}.${year}.${hour ? ` ${hour}:${minute}:${second}` : ''}`
 }
 
 /**
@@ -112,6 +122,13 @@ function CenteredMessage({ icon, title, subtitle }: { icon: string; title: strin
 function SharedReportView({ link }: { link: ShareLink }) {
   const { snapshot } = link
   const isInstitution = link.type === 'institution'
+  const visibleCategories = snapshot.filters?.categories?.length
+    ? CATEGORIES.filter(category => snapshot.filters.categories?.includes(category))
+    : CATEGORIES
+  const hasClassificationSnapshot = Boolean(
+    snapshot.institutionClassifications && Object.keys(snapshot.institutionClassifications).length > 0,
+  )
+  const registrySource = snapshot.registrySource
 
   // Build pivot: institution × category
   const pivot = useMemo(() => {
@@ -127,10 +144,10 @@ function SharedReportView({ link }: { link: ShareLink }) {
         total += v
       })
       return { inst, catTotals, total }
-    }).filter(r => r.total > 0 || isInstitution)
+    })
     rows.sort((a, b) => b.total - a.total)
     return rows
-  }, [snapshot, isInstitution])
+  }, [snapshot])
 
   const colTotals = useMemo(() => {
     const t: Record<CategoryGroup, number> = {} as Record<CategoryGroup, number>
@@ -180,24 +197,47 @@ function SharedReportView({ link }: { link: ShareLink }) {
           </div>
 
           {/* Active filters info */}
-          {(snapshot.filters.year || snapshot.filters.valueType) && (
-            <div className="mt-4 flex flex-wrap gap-2 text-xs">
-              {snapshot.filters.year && (
-                <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700">
-                  Godina: {snapshot.filters.year}
-                </span>
+          <div className="mt-4 flex flex-wrap gap-2 text-xs">
+            {snapshot.filters?.year !== undefined && (
+              <FilterChip label="Godina" value={snapshot.filters.year === 'all' ? 'Sve godine' : String(snapshot.filters.year)} />
+            )}
+            {snapshot.filters?.valueType && snapshot.filters.valueType !== 'oba' && (
+              <FilterChip label="Tip" value={snapshot.filters.valueType} />
+            )}
+            {snapshot.filters?.categories && snapshot.filters.categories.length < CATEGORIES.length && (
+              <FilterChip label="Kategorije" value={snapshot.filters.categories.map(c => CAT_LABELS[c]).join(', ')} />
+            )}
+            {snapshot.filters?.pravniStatusi && snapshot.filters.pravniStatusi.length > 0 && (
+              <FilterChip label="Vrsta tijela" value={snapshot.filters.pravniStatusi.join(', ')} />
+            )}
+            {snapshot.filters?.djelatnosti && snapshot.filters.djelatnosti.length > 0 && (
+              <FilterChip label="Djelatnost" value={snapshot.filters.djelatnosti.join(', ')} />
+            )}
+            {snapshot.filters?.osnivaci && snapshot.filters.osnivaci.length > 0 && (
+              <FilterChip label="Osnivač" value={snapshot.filters.osnivaci.join(', ')} />
+            )}
+          </div>
+          {(hasClassificationSnapshot || registrySource) && (
+            <p className="mt-3 text-[11px] leading-relaxed text-gray-400">
+              Klasifikacija — smrznuta verzija uz ovaj snapshot:{' '}
+              <a
+                href={registrySource?.url ?? REGISTRY_SOURCE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-700 hover:underline"
+              >
+                službeni Popis tijela javne vlasti
+              </a>
+              {registrySource ? (
+                <>
+                  {' · '}{registrySource.recordCount.toLocaleString('hr-HR')} zapisa
+                  {' · najnovija izmjena u izvoru: '}{formatRegistryTimestamp(registrySource.updatedAt)}
+                  {' · ove se vrijednosti ne mijenjaju nakon izrade izvješća'}
+                </>
+              ) : (
+                ' · vrijednosti su spremljene u snapshot, ali verzija izvora nije zabilježena u ovom starijem izvješću'
               )}
-              {snapshot.filters.valueType && snapshot.filters.valueType !== 'oba' && (
-                <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700">
-                  {snapshot.filters.valueType}
-                </span>
-              )}
-              {snapshot.filters.categories && snapshot.filters.categories.length < CATEGORIES.length && (
-                <span className="px-2 py-1 rounded-full bg-blue-50 text-blue-700">
-                  Kategorije: {snapshot.filters.categories.map(c => CAT_LABELS[c]).join(', ')}
-                </span>
-              )}
-            </div>
+            </p>
           )}
         </div>
 
@@ -222,7 +262,7 @@ function SharedReportView({ link }: { link: ShareLink }) {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Institucija</th>
-                    {CATEGORIES.map(c => (
+                    {visibleCategories.map(c => (
                       <th key={c} className="text-right px-4 py-2 text-xs font-semibold text-gray-500 uppercase">{CAT_LABELS[c]}</th>
                     ))}
                     <th className="text-right px-4 py-2 text-xs font-semibold text-gray-700 uppercase">Ukupno</th>
@@ -231,8 +271,13 @@ function SharedReportView({ link }: { link: ShareLink }) {
                 <tbody className="divide-y divide-gray-100">
                   {pivot.map((r) => (
                     <tr key={r.inst.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2 text-gray-700 font-medium">{r.inst.name}</td>
-                      {CATEGORIES.map(c => (
+                      <td className="min-w-80 px-4 py-2 text-gray-700 font-medium">
+                        <span>{r.inst.name}</span>
+                        <RegistryClassificationMeta
+                          classification={r.inst.id ? snapshot.institutionClassifications?.[r.inst.id] : undefined}
+                        />
+                      </td>
+                      {visibleCategories.map(c => (
                         <td key={c} className="px-4 py-2 text-right font-mono text-gray-600">{fmt(r.catTotals[c])}</td>
                       ))}
                       <td className="px-4 py-2 text-right font-mono font-semibold text-gray-800">{fmt(r.total)}</td>
@@ -240,7 +285,7 @@ function SharedReportView({ link }: { link: ShareLink }) {
                   ))}
                   <tr className="bg-gray-50 font-semibold">
                     <td className="px-4 py-2 text-gray-700">UKUPNO</td>
-                    {CATEGORIES.map(c => (
+                    {visibleCategories.map(c => (
                       <td key={c} className="px-4 py-2 text-right font-mono">{fmt(colTotals[c])}</td>
                     ))}
                     <td className="px-4 py-2 text-right font-mono">{fmt(colTotals.Ukupno)}</td>
@@ -298,5 +343,13 @@ function SummaryCard({ label, value, icon }: { label: string; value: string | nu
       <p className="text-xs text-gray-500 mb-1">{icon} {label}</p>
       <p className="text-lg font-bold text-gray-800 truncate">{value}</p>
     </div>
+  )
+}
+
+function FilterChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="max-w-full rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-blue-800">
+      <span className="font-semibold">{label}:</span> {value}
+    </span>
   )
 }

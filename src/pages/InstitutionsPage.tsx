@@ -1,14 +1,32 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getProvider } from '../providers'
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
 import { StatusBadge, ActiveBadge } from '../components/StatusBadge'
-import { RegistryLinkModal } from '../components/RegistryLinkModal'
-import { getRegistry } from '../utils/registryLoader'
-import { DII_REGISTRY, DII_REGISTRY_TOTAL } from '../data/diiRegistry'
+import {
+  getRegistry,
+  NEKATEGORIZIRANO,
+  PRAVNI_STATUSI,
+  REGISTRY_SOURCE_URL,
+  type RegistryData,
+} from '../utils/registryLoader'
+import { RegistryClassificationFilters, RegistryClassificationMeta } from '../components/RegistryClassificationFilters'
+import {
+  buildClassificationOptions,
+  buildInstitutionClassificationMap,
+  classificationValue,
+  createEmptyClassificationFilters,
+  fallbackClassification,
+  matchesClassificationFilters,
+  type ClassificationDimension,
+  type ClassificationFilterState,
+  type InstitutionClassification,
+  type InstitutionClassificationMap,
+} from '../utils/reportFilters'
+import { DII_REGISTRY } from '../data/diiRegistry'
 import type { DiiEntry } from '../data/diiRegistry'
 
 interface InstitutionRow {
@@ -30,20 +48,14 @@ const PAGE_SIZE = 50
 interface RegistryViewProps {
   institutions: Institution[]
   batches: ImportBatch[]
-  onRequestLink: (institution: Institution) => void
+  registry?: RegistryData
+  classificationFilters: ClassificationFilterState
 }
 
-function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProps) {
+function RegistryView({ institutions, batches, registry, classificationFilters }: RegistryViewProps) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<RegistryFilter>('sve')
   const [page, setPage] = useState(0)
-
-  // Load full registry for optional grad/pravniStatus details
-  const { data: registry } = useQuery({
-    queryKey: ['registry'],
-    queryFn: getRegistry,
-    staleTime: Infinity,
-  })
 
   const institutionByOib = useMemo(
     () => new Map(institutions.map(i => [i.oib, i])),
@@ -54,30 +66,42 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
     [batches]
   )
 
+  const registryRows = useMemo(() => DII_REGISTRY.map((diiEntry: DiiEntry) => {
+    const inst = diiEntry.oib ? institutionByOib.get(diiEntry.oib) : undefined
+    const hasActiveBatch = inst?.id != null ? activeBatchSet.has(inst.id) : false
+    const regEntry = diiEntry.oib ? registry?.byOib.get(diiEntry.oib) : undefined
+    const classification: InstitutionClassification = registry
+      ? {
+          pravniStatus: classificationValue(regEntry?.pravniStatus),
+          djelatnost: classificationValue(regEntry?.djelatnost),
+          osnivac: classificationValue(regEntry?.osnivac),
+          registryMatched: Boolean(regEntry),
+        }
+      : fallbackClassification()
+    return { diiEntry, inst, hasActiveBatch, regEntry, classification }
+  }), [registry, institutionByOib, activeBatchSet])
+
+  const classificationScopedRows = useMemo(
+    () => registryRows.filter(row => matchesClassificationFilters(row.classification, classificationFilters)),
+    [registryRows, classificationFilters],
+  )
+
   const stats = useMemo(() => {
     let uApp = 0, uRegistru = 0
-    for (const entry of DII_REGISTRY) {
-      if (!entry.oib) continue
-      const inst = institutionByOib.get(entry.oib)
-      if (inst) {
+    for (const row of classificationScopedRows) {
+      if (row.inst) {
         uRegistru++
-        if (inst.id != null && activeBatchSet.has(inst.id)) uApp++
+        if (row.hasActiveBatch) uApp++
       }
     }
-    const total = DII_REGISTRY_TOTAL
+    const total = classificationScopedRows.length
     return { total, uApp, uRegistru }
-  }, [institutionByOib, activeBatchSet])
+  }, [classificationScopedRows])
 
   const visibleFiltered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return DII_REGISTRY
-      .map((diiEntry: DiiEntry) => {
-        const inst = diiEntry.oib ? institutionByOib.get(diiEntry.oib) : undefined
-        const hasActiveBatch = inst?.id != null ? activeBatchSet.has(inst.id) : false
-        const regEntry = diiEntry.oib ? registry?.byOib.get(diiEntry.oib) : undefined
-        return { diiEntry, inst, hasActiveBatch, regEntry }
-      })
-      .filter(({ diiEntry, inst, hasActiveBatch }) => {
+    return classificationScopedRows
+      .filter(({ diiEntry, inst, hasActiveBatch, regEntry, classification }) => {
         if (filter === 'u_aplikaciji' && !(inst && hasActiveBatch)) return false
         if (filter === 'prepoznato' && (!inst || hasActiveBatch)) return false
         if (filter === 'nije_upareno' && inst) return false
@@ -85,19 +109,23 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
           const hit =
             diiEntry.name.toLowerCase().includes(q) ||
             (diiEntry.oib?.includes(q) ?? false) ||
-            (inst?.name.toLowerCase().includes(q) ?? false)
+            (inst?.name.toLowerCase().includes(q) ?? false) ||
+            (regEntry?.naziv.toLowerCase().includes(q) ?? false) ||
+            classification.pravniStatus.toLowerCase().includes(q) ||
+            classification.djelatnost.toLowerCase().includes(q) ||
+            classification.osnivac.toLowerCase().includes(q)
           if (!hit) return false
         }
         return true
       })
-  }, [registry, institutionByOib, activeBatchSet, search, filter])
+  }, [classificationScopedRows, search, filter])
 
   // Reset na prvu stranicu kad se promijeni filter
-  useEffect(() => setPage(0), [search, filter])
+  useEffect(() => setPage(0), [search, filter, classificationFilters])
 
   const totalPages = Math.max(1, Math.ceil(visibleFiltered.length / PAGE_SIZE))
   const visiblePage = visibleFiltered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-  const pct = Math.round((stats.uApp / stats.total) * 100)
+  const pct = stats.total > 0 ? Math.round((stats.uApp / stats.total) * 100) : 0
 
   return (
     <div>
@@ -154,8 +182,8 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Naziv ili OIB..."
-            className="pl-8 pr-4 py-1.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 w-52"
+            placeholder="Naziv, OIB ili klasifikacija..."
+            className="pl-8 pr-4 py-1.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
           />
         </div>
       </div>
@@ -166,7 +194,7 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
           <p className="p-10 text-center text-gray-400 text-sm">Nema rezultata</p>
         ) : (
           <div className="divide-y divide-gray-100">
-            {visiblePage.map(({ diiEntry, inst, hasActiveBatch, regEntry }) => {
+            {visiblePage.map(({ diiEntry, inst, hasActiveBatch, regEntry, classification }) => {
               const active = !!inst && hasActiveBatch
               const linked = !!inst
               const rowKey = diiEntry.oib ?? diiEntry.name
@@ -200,8 +228,11 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
                         ⚠ Naziv se razlikuje od registra: &ldquo;{regEntry!.naziv}&rdquo;
                       </p>
                     )}
-                    {!nameMismatch && regEntry?.pravniStatus && (
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">{regEntry.pravniStatus}</p>
+                    {registry && <RegistryClassificationMeta classification={classification} />}
+                    {!classification.registryMatched && registry && (
+                      <p className="mt-1 text-xs font-medium text-amber-700">
+                        ⚠ {NEKATEGORIZIRANO} — OIB nije pronađen u službenom Popisu tijela javne vlasti
+                      </p>
                     )}
                   </div>
                   <div className="shrink-0 flex items-center gap-2">
@@ -213,19 +244,19 @@ function RegistryView({ institutions, batches, onRequestLink }: RegistryViewProp
                       </span>
                     )}
                     {active ? (
-                      <button
-                        onClick={() => onRequestLink(inst)}
+                      <Link
+                        to={`/institucije/${inst.id}`}
                         className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
                       >
                         ✓ U aplikaciji
-                      </button>
+                      </Link>
                     ) : linked ? (
-                      <button
-                        onClick={() => onRequestLink(inst)}
+                      <Link
+                        to={`/institucije/${inst.id}`}
                         className="text-xs font-medium px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition-colors whitespace-nowrap"
                       >
                         Nema uploada
-                      </button>
+                      </Link>
                     ) : (
                       <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
                         Nije dostavljeno
@@ -298,14 +329,15 @@ export function filterAndSortRows(
 export function InstitutionsPage() {
   usePageTitle('Institucije')
   const location = useLocation()
-  const qc = useQueryClient()
   const locState = location.state as { expandId?: string; view?: PageView } | null
   const [view, setView] = useState<PageView>(locState?.view ?? 'uvezeni')
   const [expanded, setExpanded] = useState<string | null>(locState?.expandId ?? null)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterKey>('sve')
   const [sort, setSort] = useState<SortKey>('batches_desc')
-  const [linkTarget, setLinkTarget] = useState<Institution | null>(null)
+  const [classificationFilters, setClassificationFilters] = useState<ClassificationFilterState>(
+    createEmptyClassificationFilters,
+  )
   const expandedRef = useRef<HTMLDivElement | null>(null)
 
   const { data: institutions = [], isLoading: instLoading } = useQuery({
@@ -317,12 +349,34 @@ export function InstitutionsPage() {
     queryFn: () => getProvider().getBatches(),
   })
   // Registry se fetchuje jednom i cachea — koristi se za badge u listi institucija
-  const { data: registry } = useQuery({
+  const { data: registry, isLoading: registryLoading, isError: registryError } = useQuery({
     queryKey: ['registry'],
     queryFn: getRegistry,
     staleTime: Infinity,
   })
-  const loading = instLoading || batchLoading
+  const loading = instLoading || batchLoading || registryLoading
+  const activeRegistry = registryError ? undefined : registry
+
+  const institutionClassifications = useMemo<InstitutionClassificationMap>(
+    () => buildInstitutionClassificationMap(institutions, activeRegistry?.byOib ?? new Map()),
+    [institutions, activeRegistry],
+  )
+  const classificationOptions = useMemo(
+    () => buildClassificationOptions(
+      institutionClassifications,
+      {
+        pravniStatus: [...(activeRegistry?.pravniStatusi ?? []), NEKATEGORIZIRANO],
+        djelatnost: [...(activeRegistry?.djelatnosti ?? []), NEKATEGORIZIRANO],
+        osnivac: [...(activeRegistry?.osnivaci ?? []), NEKATEGORIZIRANO],
+      },
+      PRAVNI_STATUSI,
+    ),
+    [institutionClassifications, activeRegistry],
+  )
+
+  function handleClassificationFilterChange(dimension: ClassificationDimension, values: Set<string>) {
+    setClassificationFilters(previous => ({ ...previous, [dimension]: values }))
+  }
 
   const rows = useMemo(() => {
     const mapped: InstitutionRow[] = institutions.map((inst) => {
@@ -353,7 +407,26 @@ export function InstitutionsPage() {
     }
   }, [expanded, rows])
 
-  const filtered = filterAndSortRows(rows, search, filter, sort)
+  const classificationScopedRows = useMemo(
+    () => rows.filter(row => matchesClassificationFilters(
+      institutionClassifications[row.institution.id ?? ''] ?? fallbackClassification(),
+      classificationFilters,
+    )),
+    [rows, institutionClassifications, classificationFilters],
+  )
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLocaleLowerCase('hr')
+    return filterAndSortRows(classificationScopedRows, '', filter, sort).filter(row => {
+      if (!q) return true
+      const classification = institutionClassifications[row.institution.id ?? ''] ?? fallbackClassification()
+      return row.institution.name.toLocaleLowerCase('hr').includes(q)
+        || row.institution.oib.includes(q)
+        || classification.pravniStatus.toLocaleLowerCase('hr').includes(q)
+        || classification.djelatnost.toLocaleLowerCase('hr').includes(q)
+        || classification.osnivac.toLocaleLowerCase('hr').includes(q)
+    })
+  }, [classificationScopedRows, institutionClassifications, search, filter, sort])
 
   if (loading) {
     return (
@@ -394,7 +467,7 @@ export function InstitutionsPage() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Pretraži naziv ili OIB..."
+                placeholder="Naziv, OIB ili klasifikacija..."
                 className="pl-8 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-64"
               />
             </div>
@@ -402,24 +475,44 @@ export function InstitutionsPage() {
         </div>
       </div>
 
-      {/* Modal — ručno uparivanje institucije s registarskim unosom */}
-      {linkTarget && (
-        <RegistryLinkModal
-          institutionName={linkTarget.name}
-          currentRegistryIndex={linkTarget.registryIndex}
-          onConfirm={async (idx) => {
-            await getProvider().updateInstitutionRegistryIndex(linkTarget.id!, idx)
-            qc.invalidateQueries({ queryKey: ['institutions'] })
-          }}
-          onClose={() => setLinkTarget(null)}
-        />
-      )}
+      <section aria-label="Službena klasifikacija institucija" className="mb-5 rounded-2xl border border-gray-200 bg-white p-4">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold text-gray-700">Službena klasifikacija</p>
+            <p className="mt-0.5 text-xs text-gray-400">
+              Filtri vrijede u oba prikaza i određuju se po OIB-u institucije.
+            </p>
+          </div>
+          <a
+            href={REGISTRY_SOURCE_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs font-medium text-blue-600 hover:underline"
+          >
+            Popis tijela javne vlasti ↗
+          </a>
+        </div>
+        {registryError ? (
+          <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+            <span className="font-semibold">Službeni registar nije učitan.</span>{' '}
+            Klasifikacijski filtri i oznake skriveni su kako se institucije ne bi pogrešno prikazale kao nekategorizirane.
+          </div>
+        ) : (
+          <RegistryClassificationFilters
+            options={classificationOptions}
+            selected={classificationFilters}
+            onChange={handleClassificationFilterChange}
+            disabled={!activeRegistry}
+          />
+        )}
+      </section>
 
       {view === 'registar' && (
         <RegistryView
           institutions={institutions}
           batches={batches}
-          onRequestLink={setLinkTarget}
+          registry={activeRegistry}
+          classificationFilters={classificationFilters}
         />
       )}
 
@@ -444,6 +537,7 @@ export function InstitutionsPage() {
               {label}
               {key !== 'sve' && (() => {
                 const count = rows.filter((r) => {
+                  if (!classificationScopedRows.includes(r)) return false
                   if (key === 'greske')        return r.batches.some((b) => b.errorCount > 0)
                   if (key === 'nema_aktivnog') return r.batches.length > 0 && !r.activeBatch
                   if (key === 'nema_batcha')   return r.batches.length === 0
@@ -471,9 +565,9 @@ export function InstitutionsPage() {
       {/* Summary stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
         {[
-          { label: 'Institucije',    value: rows.length, icon: '🏛️', sub: undefined },
-          { label: 'Uvozi ukupno', value: rows.reduce((s, r) => s + r.batches.length, 0), icon: '📦', sub: `${rows.reduce((s, r) => s + r.activeBatchCount, 0)} aktivnih` },
-          { label: 'Financ. unosa', value: rows.reduce((s, r) => s + r.activeEntries, 0).toLocaleString('hr-HR'), icon: '📊', sub: 'iz aktivnih batcheva' },
+          { label: 'Institucije', value: classificationScopedRows.length, icon: '🏛️', sub: classificationScopedRows.length !== rows.length ? `od ${rows.length} ukupno` : undefined },
+          { label: 'Uvozi ukupno', value: classificationScopedRows.reduce((s, r) => s + r.batches.length, 0), icon: '📦', sub: `${classificationScopedRows.reduce((s, r) => s + r.activeBatchCount, 0)} aktivnih` },
+          { label: 'Financ. unosa', value: classificationScopedRows.reduce((s, r) => s + r.activeEntries, 0).toLocaleString('hr-HR'), icon: '📊', sub: 'iz aktivnih batcheva' },
         ].map(({ label, value, icon, sub }) => (
           <div key={label} className="bg-white rounded-2xl border border-gray-200 p-4">
             <p className="text-xs text-gray-500 mb-1">{icon} {label}</p>
@@ -495,7 +589,8 @@ export function InstitutionsPage() {
             const isOpen = expanded === id
             const hasErrors = row.batches.some((b) => b.errorCount > 0)
             // OIB-based registry lookup — registry se lazy-loada, badge se prikaže kad bude dostupan
-            const regEntry = registry?.byOib.get(row.institution.oib)
+            const regEntry = activeRegistry?.byOib.get(row.institution.oib)
+            const classification = institutionClassifications[id] ?? fallbackClassification()
 
             return (
               <div key={id} ref={isOpen ? expandedRef : null} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
@@ -518,7 +613,7 @@ export function InstitutionsPage() {
                     >
                       🔗 {regEntry.naziv.length > 25 ? regEntry.naziv.slice(0, 25) + '…' : regEntry.naziv}
                     </span>
-                  ) : registry ? (
+                  ) : activeRegistry ? (
                     <span
                       className="shrink-0 hidden sm:inline-flex items-center gap-1 text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full"
                       title="OIB nije pronađen u registru javnih tijela"
@@ -536,6 +631,10 @@ export function InstitutionsPage() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-800 truncate">{row.institution.name}</p>
                     <p className="text-xs text-gray-400 mt-0.5">OIB: {row.institution.oib}</p>
+                    {activeRegistry && <RegistryClassificationMeta classification={classification} className="max-w-2xl" />}
+                    {!classification.registryMatched && activeRegistry && (
+                      <p className="mt-1 text-xs font-medium text-amber-700">⚠ {NEKATEGORIZIRANO}</p>
+                    )}
                   </div>
 
                   {/* Stats */}

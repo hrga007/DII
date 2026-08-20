@@ -18,7 +18,6 @@ import {
 import { getFirebaseDb } from '../config/firebase'
 import { isSpecialValue, normalizeAmount } from '../excel/normalizers'
 import { countUnresolvedIssuesByBatch } from '../utils/issueCounts'
-import { findBestMatch } from '../utils/registryMatcher'
 import type { Institution } from '../models/institution'
 import type { ImportBatch } from '../models/importBatch'
 import type { FinancialEntry, ImportIssue, IssueResolutionMethod } from '../models/financialEntry'
@@ -203,42 +202,22 @@ export async function upsertInstitution(inst: Institution): Promise<string> {
   const q = query(collection(db, 'institutions'), where('oib', '==', inst.oib))
   const snap = await getDocs(q)
 
-  const withRegistry = { ...inst }
   if (!snap.empty) {
-    const existing = snap.docs[0].data() as Partial<Institution>
-    // Keep existing registryIndex; don't overwrite with undefined from import
-    if (withRegistry.registryIndex === undefined && existing.registryIndex !== undefined) {
-      withRegistry.registryIndex = existing.registryIndex
-    }
     const id = snap.docs[0].id
     await setDoc(doc(db, 'institutions', id), {
-      ...withRegistry,
+      ...inst,
       createdAt: toTimestamp(inst.createdAt),
       updatedAt: toTimestamp(new Date()),
     })
     return id
   }
 
-  // New institution: try auto-matching to registry if not explicitly set
-  if (withRegistry.registryIndex === undefined || withRegistry.registryIndex === null) {
-    const match = findBestMatch(inst.name)
-    if (match) withRegistry.registryIndex = match.index
-  }
-
   const ref = await addDoc(collection(db, 'institutions'), {
-    ...withRegistry,
+    ...inst,
     createdAt: toTimestamp(inst.createdAt),
     updatedAt: toTimestamp(new Date()),
   })
   return ref.id
-}
-
-export async function updateInstitutionRegistryIndex(
-  institutionId: string,
-  registryIndex: number | null,
-): Promise<void> {
-  const db = getFirebaseDb()
-  await updateDoc(doc(db, 'institutions', institutionId), { registryIndex })
 }
 
 export async function patchInstitution(
@@ -249,49 +228,31 @@ export async function patchInstitution(
   await updateDoc(doc(db, 'institutions', institutionId), { ...fields, updatedAt: toTimestamp(new Date()) })
 }
 
-export async function bulkAutoMatchRegistryIndex(): Promise<{
-  matched: number
-  skipped: number
-  alreadyLinked: number
-}> {
-  // Uparivanje je sada OIB-based i implicitno — ne treba pisati u Firestore.
-  // Ova funkcija ostaje u interfejsu radi kompatibilnosti; vraća samo statistiku.
-  const { getRegistry } = await import('../utils/registryLoader')
-  const registry = await getRegistry()
-  const institutions = await getInstitutions()
-  let matched = 0, skipped = 0
-  for (const inst of institutions) {
-    if (registry.byOib.has(inst.oib)) matched++
-    else skipped++
+function institutionFromData(id: string, data: Record<string, unknown>): Institution {
+  return {
+    id,
+    name: data.name as string,
+    oib: data.oib as string,
+    contactName: data.contactName as string,
+    contactEmail: data.contactEmail as string,
+    dcCount: data.dcCount as string,
+    ...(typeof data.notes === 'string' ? { notes: data.notes } : {}),
+    createdAt: fromTimestamp(data.createdAt as Timestamp),
+    updatedAt: fromTimestamp(data.updatedAt as Timestamp),
   }
-  return { matched, skipped, alreadyLinked: 0 }
 }
 
 export async function getInstitutions(): Promise<Institution[]> {
   const db = getFirebaseDb()
   const snap = await getDocs(query(collection(db, 'institutions'), orderBy('name')))
-  return snap.docs.map((d) => {
-    const data = d.data()
-    return {
-      ...data,
-      id: d.id,
-      createdAt: fromTimestamp(data.createdAt),
-      updatedAt: fromTimestamp(data.updatedAt),
-    } as Institution
-  })
+  return snap.docs.map(d => institutionFromData(d.id, d.data()))
 }
 
 export async function getInstitutionById(id: string): Promise<Institution | null> {
   const db = getFirebaseDb()
   const snap = await getDoc(doc(db, 'institutions', id))
   if (!snap.exists()) return null
-  const data = snap.data()
-  return {
-    ...data,
-    id: snap.id,
-    createdAt: fromTimestamp(data.createdAt),
-    updatedAt: fromTimestamp(data.updatedAt),
-  } as Institution
+  return institutionFromData(snap.id, snap.data())
 }
 
 // ─── Import Batches ──────────────────────────────────────────────
@@ -543,7 +504,7 @@ export async function resolveIssue(
       const batchSnap = await getDoc(doc(db, 'importBatches', meta.batchId))
       const institutionId = batchSnap.data()?.institutionId as string | undefined
       if (institutionId) {
-        const instUpdate: Record<string, string> = {}
+        const instUpdate: Record<string, string | Timestamp> = { updatedAt: toTimestamp(new Date()) }
         if (fn === 'oib') instUpdate.oib = correctedValue
         if (fn === 'naziv tijela') instUpdate.name = correctedValue
         await updateDoc(doc(db, 'institutions', institutionId), instUpdate)
@@ -757,25 +718,25 @@ export async function reapplyResolvedIssues(): Promise<{ updated: number; skippe
     if (currentVal === correctedValue) { skipped++; continue }
 
     const field = fn === 'oib' ? 'oib' : 'name'
-    await updateDoc(doc(db, 'institutions', institutionId), { [field]: correctedValue })
+    await updateDoc(doc(db, 'institutions', institutionId), {
+      [field]: correctedValue,
+      updatedAt: toTimestamp(new Date()),
+    })
     updated++
   }
   return { updated, skipped }
 }
 
 export async function syncNamesFromRegistry(): Promise<{ updated: number; skipped: number; notFound: number }> {
-  const { DII_REGISTRY } = await import('../data/diiRegistry')
-  const oibToName = new Map<string, string>()
-  for (const entry of DII_REGISTRY) {
-    if (entry.oib) oibToName.set(entry.oib, entry.name)
-  }
+  const { getRegistry } = await import('../utils/registryLoader')
+  const registry = await getRegistry()
 
   const institutions = await getInstitutions()
   let updated = 0, skipped = 0, notFound = 0
 
   for (const inst of institutions) {
     if (!inst.oib) { skipped++; continue }
-    const registryName = oibToName.get(inst.oib)
+    const registryName = registry.byOib.get(inst.oib)?.naziv
     if (!registryName) { notFound++; continue }
     if (inst.name.trim() === registryName.trim()) { skipped++; continue }
     await patchInstitution(inst.id!, { name: registryName })
@@ -974,6 +935,8 @@ function shareFromDoc(id: string, data: Record<string, unknown>): ShareLink {
         ...e,
         createdAt: fromTimestamp(e.createdAt as Timestamp),
       })) as ShareLink['snapshot']['entries'],
+      institutionClassifications: snap.institutionClassifications as ShareLink['snapshot']['institutionClassifications'],
+      registrySource: snap.registrySource as ShareLink['snapshot']['registrySource'],
       resources: ((snap.resources as Record<string, unknown>[]) ?? undefined)?.map(r => ({
         ...r,
         createdAt: fromTimestamp(r.createdAt as Timestamp),

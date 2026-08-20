@@ -36,4 +36,45 @@ describe('shareLink model', () => {
     expect(link.type).toBe('report')
     expect(link.snapshot.entries).toEqual([])
   })
+
+  it('supports a self-contained classification snapshot while old snapshots stay valid', () => {
+    const oldFilters = {} satisfies ShareLink['snapshot']['filters']
+    expect(oldFilters).toEqual({})
+
+    const link: ShareLink = {
+      token: 'classified',
+      type: 'report',
+      title: 'Klasificirano izvješće',
+      createdAt: new Date(),
+      createdBy: 'u',
+      expiresAt: new Date(),
+      viewCount: 0,
+      lastViewedAt: null,
+      snapshot: {
+        filters: {
+          pravniStatusi: ['Državna tijela'],
+          djelatnosti: ['Pravosuđe'],
+          osnivaci: ['Republika Hrvatska'],
+        },
+        institutions: [],
+        entries: [],
+        institutionClassifications: {
+          i1: {
+            pravniStatus: 'Državna tijela',
+            djelatnost: 'Pravosuđe',
+            osnivac: 'Republika Hrvatska',
+          },
+        },
+        registrySource: {
+          url: 'https://tjv.pristupinfo.hr/?download=',
+          updatedAt: '2026-08-20 11:14:29',
+          recordCount: 5763,
+        },
+      },
+    }
+
+    expect(link.snapshot.filters.pravniStatusi).toEqual(['Državna tijela'])
+    expect(link.snapshot.institutionClassifications?.i1.osnivac).toBe('Republika Hrvatska')
+    expect(link.snapshot.registrySource?.recordCount).toBe(5763)
+  })
 })
